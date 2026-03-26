@@ -374,7 +374,7 @@ export default function Home() {
   const [showMagic, setShowMagic] = useState(false);
   const [selectedFile, setSelectedFile] = useState('LocationAqiController.java');
 
-  const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any) => {
+  const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any, locationName?: string) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
     if (isNaN(aqiValue) || aqiValue < 0 || aqiValue > 500) {
       setError('Please enter a valid AQI (0–500)');
@@ -417,7 +417,7 @@ export default function Home() {
           riskLevel: data.details?.healthImpact?.riskLevel ?? data.healthImpact?.riskLevel ?? 'Unknown',
           healthRisks: data.details?.healthImpact?.healthRisks ?? data.healthImpact?.healthRisks ?? [],
         },
-        location: data.location,
+        location: locationName ?? data.location,
         placeInfo: placeData ?? data.placeInfo,
       };
       setResult(normalized);
@@ -451,7 +451,7 @@ export default function Home() {
           setLocationLabel(`📍 ${data.location ?? `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`} — AQI ${data.aqi} `);
           setLocationLoading(false);
           // Auto-calculate after location fetch
-          await calculateCigarettes(data.aqi, data.placeInfo);
+          await calculateCigarettes(data.aqi, data.placeInfo, data.location);
         } catch {
           setLocationError('Could not fetch AQI for your location. Enter manually.');
           setLocationLoading(false);
@@ -869,9 +869,10 @@ export default function Home() {
                           key={i}
                           className="group relative"
                           style={{
-                            animation: `fadeSlideUp 0.4s ease - out forwards`,
-                            animationDelay: `${i * 60} ms`,
+                            animation: `fadeSlideUp 0.4s ease-out forwards`,
+                            animationDelay: `${i * 60}ms`,
                             opacity: 0
+
                           }}
                         >
                           <div className="relative h-20 w-6 mx-auto transform transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1">
@@ -998,8 +999,8 @@ export default function Home() {
           to { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulse {
-  0 %, 100 % { opacity: 0.6; }
-  50 % { opacity: 1; }
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 `}} />
     </main>

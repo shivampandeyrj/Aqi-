@@ -9,6 +9,8 @@ public class CalculationResponse {
     private PlaceInfo placeInfo;
     private String calculationMethod;
     private String dataSource;
+    private String location;
+
 
     public CalculationResponse() {}
 
@@ -36,4 +38,8 @@ public class CalculationResponse {
     
     public String getDataSource() { return dataSource; }
     public void setDataSource(String source) { this.dataSource = source; }
+
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
 }
+

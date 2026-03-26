@@ -50,7 +50,9 @@ public class LocationAqiController {
             
             // Enrich with full Calculation Response data
             int aqi = (int) result.get("aqi");
-            result.put("details", aqiCalculatorService.calculate(aqi));
+            CalculationResponse details = aqiCalculatorService.calculate(aqi);
+            details.setLocation(cityName);
+            result.put("details", details);
             
             return ResponseEntity.ok(result);
 
