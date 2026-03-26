@@ -1,3 +1,4 @@
+services:
   # 1. Java Backend Service
   - type: web
     name: aqi-calculator-backend
