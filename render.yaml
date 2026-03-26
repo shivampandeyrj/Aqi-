@@ -21,7 +21,4 @@ services:
     startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: aqi-calculator-backend
-          property: host
+        value: https://aqi-calculator-backend.onrender.com
