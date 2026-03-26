@@ -85,36 +85,4 @@ public class LocationAqiService {
         return result;
     }
 
-    private String fetchLocationName(double lat, double lng) {
-        try {
-            String url = String.format(REVERSE_GEOCODE_URL, lat, lng);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                JsonNode root = objectMapper.readTree(response.body());
-                String city = root.path("city").asText();
-                String locality = root.path("locality").asText();
-                String principalSubdivision = root.path("principalSubdivision").asText();
-
-                logger.info("Reverse geocode result: city={}, locality={}, subdivision={}", 
-                        city, locality, principalSubdivision);
-
-                if (!city.isEmpty()) {
-                    return city + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
-                } else if (!locality.isEmpty()) {
-                    return locality + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
-                }
-            } else {
-                logger.warn("Reverse geocode failed with status: {}", response.statusCode());
-            }
-        } catch (Exception e) {
-            logger.error("Error during reverse geocoding: {}", e.getMessage());
-        }
-        return String.format("%.4f°, %.4f°", lat, lng);
-    }
 }
