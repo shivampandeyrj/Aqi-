@@ -1,6 +1,8 @@
 package com.aqicalculator.controller;
 
 import com.aqicalculator.service.LocationAqiService;
+import com.aqicalculator.service.CityInfoService;
+import com.aqicalculator.service.AqiCalculatorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,15 +15,15 @@ import java.util.Map;
 public class LocationAqiController {
 
     private final LocationAqiService locationAqiService;
-    private final WikipediaService wikipediaService;
+    private final CityInfoService cityInfoService;
     private final AqiCalculatorService aqiCalculatorService;
 
     @Autowired
     public LocationAqiController(LocationAqiService locationAqiService, 
-                                 WikipediaService wikipediaService,
+                                 CityInfoService cityInfoService,
                                  AqiCalculatorService aqiCalculatorService) {
         this.locationAqiService = locationAqiService;
-        this.wikipediaService = wikipediaService;
+        this.cityInfoService = cityInfoService;
         this.aqiCalculatorService = aqiCalculatorService;
     }
 
@@ -42,9 +44,9 @@ public class LocationAqiController {
 
             Map<String, Object> result = locationAqiService.fetchAqi(lat, lng);
             
-            // Enrich with Wikipedia data
+            // Enrich with City Information
             String cityName = (String) result.get("location");
-            result.put("placeInfo", wikipediaService.fetchPlaceInfo(cityName));
+            result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
             
             // Enrich with full Calculation Response data
             int aqi = (int) result.get("aqi");

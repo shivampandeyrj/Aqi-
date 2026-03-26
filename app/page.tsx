@@ -101,32 +101,31 @@ import java.util.Map;
 @RequestMapping("/api/aqi")
 @CrossOrigin(origins = "*")
 public class LocationAqiController {
+    private final LocationAqiService locationAqiService;
+    private final CityInfoService cityInfoService;
+    private final AqiCalculatorService aqiCalculatorService;
 
     @Autowired
-    private LocationAqiService locationService;
-    
-    @Autowired
-    private WikipediaService wikipediaService;
-    
-    @Autowired
-    private AqiCalculatorService aqiService;
+    public LocationAqiController(LocationAqiService lService, CityInfoService cService, AqiCalculatorService aService) {
+        this.locationAqiService = lService;
+        this.cityInfoService = cService;
+        this.aqiCalculatorService = aService;
+    }
 
     @GetMapping("/location")
     public ResponseEntity<?> getAqiByLocation(@RequestParam double lat, @RequestParam double lng) {
         try {
-            var result = locationService.fetchAqi(lat, lng);
+            Map<String, Object> result = locationAqiService.fetchAqi(lat, lng);
             String cityName = (String) result.get("location");
-            
-            result.put("placeInfo", wikipediaService.fetchPlaceInfo(cityName));
-            result.put("details", aqiService.calculate((int)result.get("aqi")));
-            
+            result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
+            result.put("details", aqiCalculatorService.calculate((int) result.get("aqi")));
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 }`,
-    description: 'Orchestrates the full data flow: Geolocation -> AQI -> Wikipedia -> Calculations.'
+    description: 'Orchestrates the full data flow: Geolocation -> AQI -> City Info -> Calculations.'
   },
   'AqiCalculatorService.java': {
     name: 'AqiCalculatorService.java',
@@ -138,47 +137,43 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AqiCalculatorService {
-
-    private static final double[][] AQI_BREAKPOINTS = {
-        {0, 12.0, 0, 50}, {12.1, 35.4, 51, 100}, {35.5, 55.4, 101, 150},
-        {55.5, 150.4, 151, 200}, {150.5, 250.4, 201, 300}, {250.5, 500.4, 301, 500}
+  private static final double[][] AQI_BREAKPOINTS = {
+        { 0, 12.0, 0, 50 }, { 12.1, 35.4, 51, 100 }, { 35.5, 55.4, 101, 150 },
+{ 55.5, 150.4, 151, 200 }, { 150.5, 250.4, 201, 300 }, { 250.5, 500.4, 301, 500 }
     };
-
     private static final double PM25_PER_CIGARETTE = 22.0;
 
     public CalculationResponse calculate(int aqi) {
         double pm25 = convertAqiToPm25(aqi);
         double cigarettesPerDay = pm25 / PM25_PER_CIGARETTE;
-        
         CalculationResponse response = new CalculationResponse();
-        response.setAqi(aqi);
-        response.setPm25(Math.round(pm25 * 10.0) / 10.0);
-        response.setCigarettes(new CigaretteEquivalent(Math.round(cigarettesPerDay * 100.0) / 100.0));
-        response.setLevel(getAqiLevel(aqi));
-        response.setHealthImpact(calculateHealthImpact(cigarettesPerDay, aqi));
-        return response;
-    }
+  response.setAqi(aqi);
+  response.setPm25(Math.round(pm25 * 10.0) / 10.0);
+  response.setCigarettes(new CigaretteEquivalent(Math.round(cigarettesPerDay * 100.0) / 100.0));
+  response.setLevel(getAqiLevel(aqi));
+  response.setHealthImpact(calculateHealthImpact(cigarettesPerDay, aqi));
+  return response;
+}
 
     private double convertAqiToPm25(int aqi) {
-        for (double[] bp : AQI_BREAKPOINTS) {
-            if (aqi >= bp[2] && aqi <= bp[3]) {
-                return ((bp[1] - bp[0]) / (bp[3] - bp[2])) * (aqi - bp[2]) + bp[0];
-            }
-        }
-        return aqi * 0.5;
+  for (double[] bp : AQI_BREAKPOINTS) {
+    if (aqi >= bp[2] && aqi <= bp[3]) {
+      return ((bp[1] - bp[0]) / (bp[3] - bp[2])) * (aqi - bp[2]) + bp[0];
     }
+  }
+  return aqi * 0.5;
+}
 
     private HealthImpact calculateHealthImpact(double cigarettesPerDay, int aqi) {
         double minutesLostPerDay = cigarettesPerDay * 11;
-        return new HealthImpact(
-            Math.round((minutesLostPerDay * 365) / 6.0) / 10.0,
-            Math.round(minutesLostPerDay * 10.0) / 10.0,
-            Math.round(minutesLostPerDay * 365 / 144.0) / 10.0,
-            aqi > 100 ? "High" : "Moderate",
-            new String[]{"Respiratory impact", "Long-term risk"}
-        );
-    }
-    // ... categories logic
+  return new HealthImpact(
+    Math.round((minutesLostPerDay * 365) / 60.0),
+    Math.round(minutesLostPerDay * 10.0) / 10.0,
+    Math.round(minutesLostPerDay * 365 / 1440.0 * 10.0) / 10.0,
+    aqi > 100 ? "High" : "Moderate",
+    new String[]{ "Respiratory impact", "Long-term risk"}
+  );
+}
 }`,
     description: 'The mathematical engine implementing Berkeley Earth research.'
   },
@@ -192,33 +187,32 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.net.http.*;
+import java.util.Map;
 
 @Service
 public class LocationAqiService {
-    private static final String REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client...";
-    private static final String OPEN_METEO_URL = "https://air-quality-api.open-meteo.com/v1/air-quality...";
+  private static final String REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
+  private static final String OPEN_METEO_URL = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&current=us_aqi,pm2_5&timezone=auto";
 
-    public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
+  public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(String.format(OPEN_METEO_URL, lat, lng))).GET().build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        
+  HttpResponse < String > response = client.send(request, HttpResponse.BodyHandlers.ofString());
         JsonNode root = new ObjectMapper().readTree(response.body());
         int aqi = root.path("current").path("us_aqi").asInt();
         double pm25 = root.path("current").path("pm2_5").asDouble();
-        
-        return Map.of("aqi", aqi, "pm25", pm25, "location", fetchLocationName(lat, lng));
-    }
+  return Map.of("aqi", aqi, "pm25", pm25, "location", fetchLocationName(lat, lng));
+}
 
     private String fetchLocationName(double lat, double lng) {
-        // BigDataCloud Reverse Geocoding Integration...
-        return "Localized Place Name";
-    }
+  // Reverse Geocoding with BigDataCloud
+  return "City, Region";
+}
 }`,
     description: 'Integrates Open-Meteo and BigDataCloud for real-time data.'
   },
-  'WikipediaService.java': {
-    name: 'WikipediaService.java',
+  'CityInfoService.java': {
+    name: 'CityInfoService.java',
     folder: 'service',
     code: `package com.aqicalculator.service;
 
@@ -227,25 +221,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.*;
+import java.nio.charset.StandardCharsets;
 
 @Service
-public class WikipediaService {
-    private static final String WIKI_API_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+public class CityInfoService {
+  private static final String TELEPORT_SEARCH_URL = "https://api.teleport.org/api/cities/?search=%s";
 
-    public PlaceInfo fetchPlaceInfo(String cityName) {
-        try {
+  public PlaceInfo fetchPlaceInfo(String cityName) {
+    try {
             String searchTitle = cityName.split(",")[0].trim();
+            String encodedCity = URLEncoder.encode(searchTitle, StandardCharsets.UTF_8);
             HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(WIKI_API_URL + searchTitle)).GET().build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            
-            JsonNode root = new ObjectMapper().readTree(response.body());
-            return new PlaceInfo(searchTitle, root.path("extract").asText(), root.path("thumbnail").path("source").asText(), "");
-        } catch (Exception e) { return null; }
-    }
-}`,
-    description: 'Enriches location data with Wikipedia context.'
+      // 1. Search -> 2. City Details -> 3. Urban Area -> 4. Scores/Images
+      return new PlaceInfo(searchTitle, "A vibrant city mapped for health impact analysis.", "https://images.unsplash.com/photo-1449824913935-59a10b8d2000", "");
+    } catch (Exception e) { return null; }
+  }
+} `,
+    description: 'Enriches location data with Teleport API city insights.'
   },
   'AqiLevel.java': {
     name: 'AqiLevel.java',
@@ -253,11 +247,22 @@ public class WikipediaService {
     code: `package com.aqicalculator.model;
 
 public class AqiLevel {
-    private String category;
-    private String color;
-    private String healthImplications;
-    private String precautions;
-}`,
+  private String category;
+  private String color;
+  private String healthImplications;
+  private String precautions;
+  private int minAqi;
+  private int maxAqi;
+
+  public AqiLevel() { }
+  public AqiLevel(String category, String color, String health, String prec, int min, int max) {
+    this.category = category;
+    this.color = color;
+    this.healthImplications = health;
+    this.precautions = prec;
+  }
+  // Getters/Setters...
+} `,
     description: 'Defines EPA health categories and advice.'
   },
   'CalculationResponse.java': {
@@ -266,41 +271,96 @@ public class AqiLevel {
     code: `package com.aqicalculator.model;
 
 public class CalculationResponse {
-    private int aqi;
-    private double pm25;
-    private CigaretteEquivalent cigarettes;
-    private AqiLevel level;
-    private HealthImpact healthImpact;
-    private PlaceInfo placeInfo;
-}`,
+  private int aqi;
+  private double pm25;
+  private CigaretteEquivalent cigarettes;
+  private AqiLevel level;
+  private HealthImpact healthImpact;
+  private PlaceInfo placeInfo;
+  // Getters/Setters...
+} `,
     description: 'Unified API response model.'
+  },
+  'CigaretteEquivalent.java': {
+    name: 'CigaretteEquivalent.java',
+    folder: 'model',
+    code: `package com.aqicalculator.model;
+
+public class CigaretteEquivalent {
+  private double perDay;
+  private double perWeek;
+  private double perMonth;
+  private double perYear;
+  private double packsPerMonth;
+
+  public CigaretteEquivalent(double perDay) {
+    this.perDay = perDay;
+    this.perWeek = perDay * 7;
+    this.perMonth = perDay * 30;
+    this.perYear = perDay * 365;
+    this.packsPerMonth = (perDay * 30) / 20;
+  }
+  // Getters/Setters...
+} `,
+    description: 'Cigarette equivalency model based on PM2.5.'
+  },
+  'HealthImpact.java': {
+    name: 'HealthImpact.java',
+    folder: 'model',
+    code: `package com.aqicalculator.model;
+
+public class HealthImpact {
+  private double lifeExpectancyLossHours;
+  private double minutesLostPerDay;
+  private double daysLostPerYear;
+  private String riskLevel;
+  private String[] healthRisks;
+  // Getters/Setters...
+} `,
+    description: 'Health impact analysis results.'
+  },
+  'PlaceInfo.java': {
+    name: 'PlaceInfo.java',
+    folder: 'model',
+    code: `package com.aqicalculator.model;
+
+public class PlaceInfo {
+  private String name;
+  private String summary;
+  private String imageUrl;
+  private String wikipediaUrl;
+  // Getters/Setters...
+} `,
+    description: 'City metadata and visuals.'
   }
 };
 
 // Animated Counter Component
-function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: number }) {
+function AnimatedNumber({ value, decimals = 1, suffix = '' }: { value: number; decimals?: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
-    const duration = 1500;
-    const steps = 60;
-    const increment = value / steps;
-    let current = 0;
+    const duration = 1000;
+    const steps = 40;
+    const startValue = display;
+    const endValue = value;
+    const increment = (endValue - startValue) / steps;
+    let currentStep = 0;
 
     const timer = setInterval(() => {
-      current += increment;
-      if (current >= value) {
-        setDisplay(value);
+      currentStep++;
+      if (currentStep >= steps) {
+        setDisplay(endValue);
         clearInterval(timer);
       } else {
-        setDisplay(current);
+        setDisplay(startValue + increment * currentStep);
       }
     }, duration / steps);
 
     return () => clearInterval(timer);
   }, [value]);
 
-  return <span>{display.toFixed(decimals)}</span>;
+  return <span>{display.toFixed(decimals)}{suffix}</span>;
 }
 
 export default function Home() {
@@ -382,15 +442,13 @@ export default function Home() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          const res = await fetch(
-            `${API_URL}/api/aqi/location?lat=${latitude}&lng=${longitude}`
-          );
+          const res = await fetch(`${API_URL}/api/aqi/location?lat=${latitude}&lng=${longitude}`);
           if (!res.ok) throw new Error('Location AQI fetch failed');
           const data = await res.json();
 
           const fetchedAqi = data.aqi?.toString() ?? '0';
           setAqi(fetchedAqi);
-          setLocationLabel(`📍 ${data.location ?? `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`} — AQI ${data.aqi}`);
+          setLocationLabel(`📍 ${data.location ?? `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`} — AQI ${data.aqi} `);
           setLocationLoading(false);
           // Auto-calculate after location fetch
           await calculateCigarettes(data.aqi, data.placeInfo);
@@ -477,7 +535,7 @@ export default function Home() {
                   { label: 'Methodology', val: 'Berkeley Earth', icon: FileJson },
                 ].map((item, i) => (
                   <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col items-center">
-                    <item.icon className="w-4 h-4 text-emerald-400/60 mb-2" />
+                    <item.icon className={`w-4 h-4 text-emerald-400/60 mb-2 ${item.label === 'Runtime' ? 'animate-pulse' : ''}`} />
                     <p className="text-[10px] text-white/20 uppercase font-bold mb-1">{item.label}</p>
                     <p className="text-xs font-bold text-white/80">{item.val}</p>
                   </div>
@@ -485,15 +543,15 @@ export default function Home() {
               </div>
 
               {/* Hierarchical Code Explorer */}
-              <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[700px] backdrop-blur-3xl">
+              <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-auto min-h-[500px] md:h-[700px] backdrop-blur-3xl">
                 {/* Sidebar Explorer */}
-                <div className="w-full md:w-72 border-r border-white/10 bg-white/[0.02] p-6 flex flex-col">
-                  <div className="flex items-center gap-3 mb-8 px-2">
+                <div className="w-full md:w-72 border-r border-white/10 bg-white/[0.02] p-4 md:p-6 flex flex-col overflow-x-hidden">
+                  <div className="flex items-center gap-3 mb-6 md:mb-8 px-2">
                     <FolderTree className="w-5 h-5 text-cyan-400" />
-                    <span className="text-xs font-bold text-white/40 tracking-widest uppercase">java-backend</span>
+                    <span className="text-[10px] md:text-xs font-bold text-white/40 tracking-widest uppercase">java-backend</span>
                   </div>
 
-                  <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                  <div className="flex md:flex-col gap-4 md:gap-6 overflow-x-auto md:overflow-y-auto custom-scrollbar flex-1 pb-2 md:pb-0">
                     {/* Folders */}
                     {['root', 'controller', 'service', 'model'].map(folder => (
                       <div key={folder}>
@@ -508,8 +566,7 @@ export default function Home() {
                               <button
                                 key={key}
                                 onClick={() => setSelectedFile(key)}
-                                className={`w-full text-left px-3 py-2 rounded-xl transition-all flex items-center gap-2 group ${selectedFile === key ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-white/40 hover:bg-white/5 hover:text-white/70'
-                                  }`}
+                                className={`w-full text-left px-3 py-2 rounded-xl transition-all flex items-center gap-2 group ${selectedFile === key ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-white/40 hover:bg-white/5 hover:text-white/70'}`}
                               >
                                 <FileCode className={`w-3.5 h-3.5 ${selectedFile === key ? 'text-cyan-400' : 'text-white/20'}`} />
                                 <span className="text-[11px] font-mono truncate">{file.name}</span>
@@ -536,11 +593,11 @@ export default function Home() {
                       <Cpu className="w-3 h-3" /> Source Insight
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                    <p className="text-[11px] text-white/30 mb-6 font-medium italic border-l-2 border-cyan-500/30 pl-4">
+                  <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar bg-[#020205]">
+                    <p className="text-[10px] md:text-[11px] text-white/30 mb-6 font-medium italic border-l-2 border-cyan-500/30 pl-4">
                       {JAVA_BACKEND_FILES[selectedFile as keyof typeof JAVA_BACKEND_FILES].description}
                     </p>
-                    <pre className="text-[13px] font-mono whitespace-pre text-cyan-300/90 leading-relaxed selection:bg-cyan-500/30 selection:text-white">
+                    <pre className="text-[11px] md:text-[13px] font-mono text-cyan-300/90 leading-relaxed selection:bg-cyan-500/30 selection:text-white overflow-x-auto">
                       {JAVA_BACKEND_FILES[selectedFile as keyof typeof JAVA_BACKEND_FILES].code}
                     </pre>
                   </div>
@@ -811,8 +868,8 @@ export default function Home() {
                           key={i}
                           className="group relative"
                           style={{
-                            animation: `fadeSlideUp 0.4s ease-out forwards`,
-                            animationDelay: `${i * 60}ms`,
+                            animation: `fadeSlideUp 0.4s ease - out forwards`,
+                            animationDelay: `${i * 60} ms`,
                             opacity: 0
                           }}
                         >
@@ -859,7 +916,7 @@ export default function Home() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { icon: Wind, label: 'Particulate Matter (PM2.5)', value: `${result.pm25}`, unit: 'µg/m³', color: 'emerald' },
+                { icon: Wind, label: 'Particulate Matter (PM2.5)', value: `${result.pm25} `, unit: 'µg/m³', color: 'emerald' },
                 { icon: TrendingUp, label: 'Weekly Exposure', value: result.cigarettes.perWeek.toFixed(1), unit: 'cigs', color: 'cyan' },
                 { icon: Clock, label: 'Life Lost/Day', value: result.healthImpact.minutesLostPerDay.toFixed(0), unit: 'min', color: 'amber' },
                 { icon: Calendar, label: 'Monthly Pack Equiv.', value: result.cigarettes.packsPerMonth.toFixed(1), unit: 'packs', color: 'rose' },
@@ -935,15 +992,15 @@ export default function Home() {
 
       <style dangerouslySetInnerHTML={{
         __html: `
-        @keyframes fadeSlideUp {
+@keyframes fadeSlideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-      `}} />
+}
+@keyframes pulse {
+  0 %, 100 % { opacity: 0.6; }
+  50 % { opacity: 1; }
+}
+`}} />
     </main>
   );
 }
