@@ -22,6 +22,9 @@ public class LocationAqiService {
     private static final String WAQI_API_URL =
             "https://api.waqi.info/feed/geo:%s;%s/?token=%s";
 
+    private static final String REVERSE_GEOCODE_URL = 
+            "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
+
     // User provided WAQI API token
     private static final String DEFAULT_WAQI_TOKEN = "f878fb06c427d5344cf95cc8de5c7dbca6a3c7e2";
     
@@ -38,7 +41,7 @@ public class LocationAqiService {
 
     /**
      * Fetches real-time air quality data from aqicn.org (WAQI) API.
-     * Uses the iaqi.pm25 field for accurate PM2.5 levels.
+     * Uses reverse geocoding for accurate location names.
      *
      * @param lat Latitude
      * @param lng Longitude
@@ -72,17 +75,51 @@ public class LocationAqiService {
         // to stay consistent with our AqiCalculatorService logic and EPA 2024 results.
         int aqiValue = dataNode.path("aqi").asInt(0);
         double pm25 = dataNode.path("iaqi").path("pm25").path("v").asDouble(0.0);
-        String cityName = dataNode.path("city").path("name").asText("Detected Location");
+        
+        // Try precise reverse geocoding first, fallback to WAQI station name
+        String locationName = fetchLocationName(lat, lng);
+        if (locationName == null || locationName.contains("°")) {
+            locationName = dataNode.path("city").path("name").asText(locationName);
+        }
 
         Map<String, Object> result = new HashMap<>();
-        result.put("aqi", aqiValue); // This is WAQI's reported AQI (usually US EPA)
+        result.put("aqi", aqiValue);
         result.put("pm25", Math.round(pm25 * 10.0) / 10.0);
-        result.put("location", cityName);
+        result.put("location", locationName);
+        result.put("station", dataNode.path("city").path("name").asText("Unknown Station"));
         result.put("source", "WAQI (aqicn.org) Observation");
         result.put("latitude", lat);
         result.put("longitude", lng);
 
         return result;
+    }
+
+    private String fetchLocationName(double lat, double lng) {
+        try {
+            String url = String.format(REVERSE_GEOCODE_URL, lat, lng);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = objectMapper.readTree(response.body());
+                String city = root.path("city").asText();
+                String locality = root.path("locality").asText();
+                String principalSubdivision = root.path("principalSubdivision").asText();
+
+                if (!city.isEmpty()) {
+                    return city + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
+                } else if (!locality.isEmpty()) {
+                    return locality + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error during reverse geocoding fallthrough: {}", e.getMessage());
+        }
+        return String.format("%.4f°, %.4f°", lat, lng);
     }
 
 }
