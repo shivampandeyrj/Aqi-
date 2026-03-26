@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -64,6 +65,34 @@ public class LocationAqiController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to fetch AQI data: " + e.getMessage()));
+        }
+    /**
+     * GET /api/aqi/search?query={city}
+     * Searches for monitoring stations by keyword and returns the AQI for the best match.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<?> searchAqi(
+            @RequestParam("query") String query) {
+        try {
+            if (query == null || query.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Query parameter is required"));
+            }
+
+            List<Map<String, Object>> stations = locationAqiService.searchStations(query);
+            if (stations.isEmpty()) {
+                return ResponseEntity.ok(Map.of("results", List.of(), "message", "No stations found for: " + query));
+            }
+
+            // Pick the first/best station and get its full AQI data
+            Map<String, Object> bestStation = stations.get(0);
+            double lat = (double) bestStation.get("lat");
+            double lng = (double) bestStation.get("lng");
+
+            return getAqiByLocation(lat, lng);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Search failed: " + e.getMessage()));
         }
     }
 }

@@ -119,14 +119,28 @@ public class LocationAqiController {
             Map<String, Object> result = locationAqiService.fetchAqi(lat, lng);
             String cityName = (String) result.get("location");
             result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
-            result.put("details", aqiCalculatorService.calculate((int) result.get("aqi")));
+            
+            // Core Logic: Re-calculate AQI using PM2.5 + 2024 EPA standards
+            double pm25 = (double) result.get("pm25");
+            CalculationResponse details = aqiCalculatorService.calculateFromPm25(pm25);
+            result.put("aqi", details.getAqi());
+            result.put("details", details);
+            
             return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
-        }
+        } catch (Exception e) { return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage())); }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchAqi(@RequestParam String query) {
+        try {
+            var stations = locationAqiService.searchStations(query);
+            if (stations.isEmpty()) return ResponseEntity.status(404).body("No stations found");
+            var best = stations.get(0);
+            return getAqiByLocation((double)best.get("lat"), (double)best.get("lng"));
+        } catch (Exception e) { return ResponseEntity.internalServerError().body(e.getMessage()); }
     }
 }`,
-    description: 'Orchestrates the full data flow: Geolocation -> WAQI API -> City Info -> Precision Calculations.'
+    description: 'Orchestrates the full data flow: Geolocation/Search -> WAQI API -> City Info -> 2024 EPA Precision Calculations.'
   },
   'AqiCalculatorService.java': {
     name: 'AqiCalculatorService.java',
@@ -377,6 +391,8 @@ export default function Home() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showMagic, setShowMagic] = useState(false);
   const [selectedFile, setSelectedFile] = useState('LocationAqiController.java');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any, locationName?: string) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
@@ -431,6 +447,55 @@ export default function Home() {
       setLoading(false);
     }
   }, [aqi]);
+
+  const handleSearch = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setError(null);
+    setResult(null);
+    setLocationError(null);
+    setLocationLabel(null);
+
+    try {
+      const res = await fetch(`${API_URL}/api/aqi/search?query=${encodeURIComponent(searchQuery)}`);
+      if (!res.ok) {
+        if (res.status === 404) throw new Error('No monitoring stations found for this location.');
+        throw new Error('Search failed');
+      }
+      const data = await res.json();
+
+      const fetchedAqi = data.aqi?.toString() ?? '0';
+      setAqi(fetchedAqi);
+      setLocationLabel(`🔍 ${data.location || data.station || searchQuery} — AQI ${data.aqi}`);
+
+      // The search endpoint already returns the full enriched details object
+      if (data.details) {
+        // Normalize to CalculationResult
+        const normalized: CalculationResult = {
+          aqi: data.aqi,
+          pm25: data.details.pm25,
+          cigarettes: {
+            perDay: data.details.cigarettes.perDay,
+            perWeek: data.details.cigarettes.perDay * 7,
+            perMonth: data.details.cigarettes.perDay * 30,
+            perYear: data.details.cigarettes.perDay * 365,
+            packsPerMonth: (data.details.cigarettes.perDay * 30) / 20
+          },
+          level: data.details.level,
+          healthImpact: data.details.healthImpact,
+          location: data.location,
+          placeInfo: data.placeInfo
+        };
+        setResult(normalized);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Location search failed. Try another city.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery, calculateCigarettes]);
 
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -675,12 +740,40 @@ export default function Home() {
 
             <div className="relative bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-8">
 
-              {/* Auto-detect Location Button */}
-              <div className="mb-6">
+              {/* Search Bar & Location Discovery */}
+              <div className="mb-8">
+                <form onSubmit={handleSearch} className="flex gap-2 group mb-6">
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Search city (e.g. New York, Delhi...)"
+                      value={searchQuery}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                      className="h-14 bg-white/5 border-white/10 rounded-2xl pl-12 text-white placeholder:text-white/30 focus:border-emerald-500/50 transition-all"
+                    />
+                    <Wind className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-emerald-400 transition-colors" />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isSearching}
+                    className="h-14 px-8 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-[#0a0a0f] font-bold transition-all shadow-lg shadow-emerald-500/20"
+                  >
+                    {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
+                  </Button>
+                </form>
+
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/5" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="px-4 text-[10px] font-bold uppercase tracking-widest text-white/20 bg-[#0a0a0f]">or select source</span>
+                  </div>
+                </div>
+
                 <button
                   onClick={detectLocation}
                   disabled={locationLoading}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed group"
                 >
                   {locationLoading ? (
                     <>
@@ -689,34 +782,25 @@ export default function Home() {
                     </>
                   ) : (
                     <>
-                      <MapPin className="w-4 h-4" />
-                      Precision Fetch: AQI & City Data
+                      <MapPin className="w-4 h-4 text-emerald-400" />
+                      Precision Fetch: Use Current Location
                     </>
                   )}
                 </button>
 
                 {locationLabel && (
-                  <div className="mt-3 flex items-center gap-2 text-emerald-400/80 text-xs bg-emerald-500/10 rounded-xl px-4 py-2.5">
-                    <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                    {locationLabel}
+                  <div className="mt-4 flex items-center gap-3 text-emerald-400 text-xs bg-emerald-500/10 rounded-2xl px-5 py-3 border border-emerald-500/20">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span className="font-medium">{locationLabel}</span>
                   </div>
                 )}
 
                 {locationError && (
-                  <div className="mt-3 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 rounded-xl px-4 py-2.5">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    {locationError}
+                  <div className="mt-4 flex items-center gap-3 text-amber-400 text-xs bg-amber-500/10 rounded-2xl px-5 py-3 border border-amber-500/20">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{locationError}</span>
                   </div>
                 )}
-
-                <div className="relative my-5">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10" />
-                  </div>
-                  <div className="relative flex justify-center">
-                    <span className="px-3 text-xs text-white/30 bg-[#0a0a0f]">or manual analysis</span>
-                  </div>
-                </div>
               </div>
 
               <label className="block text-sm font-medium text-white/60 mb-4">

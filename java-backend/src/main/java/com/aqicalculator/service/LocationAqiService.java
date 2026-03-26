@@ -10,8 +10,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -21,6 +25,9 @@ public class LocationAqiService {
 
     private static final String WAQI_API_URL =
             "https://api.waqi.info/feed/geo:%s;%s/?token=%s";
+
+    private static final String WAQI_SEARCH_URL =
+            "https://api.waqi.info/search/?token=%s&keyword=%s";
 
     private static final String REVERSE_GEOCODE_URL = 
             "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
@@ -100,6 +107,41 @@ public class LocationAqiService {
         result.put("longitude", lng);
 
         return result;
+    }
+
+    /**
+     * Searches for monitoring stations by keyword.
+     * @param keyword The city or station name to search for.
+     * @return List of matching stations with their coordinates.
+     */
+    public List<Map<String, Object>> searchStations(String keyword) throws Exception {
+        String url = String.format(WAQI_SEARCH_URL, waqiToken, URLEncoder.encode(keyword, StandardCharsets.UTF_8));
+        
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode root = objectMapper.readTree(response.body());
+        
+        List<Map<String, Object>> results = new ArrayList<>();
+        if ("ok".equals(root.path("status").asText())) {
+            for (JsonNode station : root.path("data")) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("name", station.path("station").path("name").asText());
+                map.put("uid", station.path("uid").asInt());
+                
+                JsonNode geo = station.path("station").path("geo");
+                if (geo.isArray() && geo.size() >= 2) {
+                    map.put("lat", geo.get(0).asDouble());
+                    map.put("lng", geo.get(1).asDouble());
+                }
+                results.add(map);
+            }
+        }
+        return results;
     }
 
     private String fetchLocationName(double lat, double lng) {
