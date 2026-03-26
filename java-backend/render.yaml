@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: aqi-calculator-backend
+    env: java
+    plan: free # or 'starter' if you want it to stay awake
+    buildCommand: mvn clean package -DskipTests
+    startCommand: java -jar target/aqi-cigarette-calculator-1.0.0.jar
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8080

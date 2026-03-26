@@ -1,0 +1,513 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Wind, Loader2, AlertTriangle, TrendingUp, Heart, Clock, Calendar, Flame, Shield, MapPin, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+// Java backend URL — set NEXT_PUBLIC_API_URL in Cloudflare Pages env vars
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+const API_URL = rawApiUrl.replace(/\/$/, '');
+
+interface CalculationResult {
+  aqi: number;
+  pm25: number;
+  cigarettes: {
+    perDay: number;
+    perWeek: number;
+    perMonth: number;
+    perYear: number;
+    packsPerMonth: number;
+  };
+  level: {
+    category: string;
+    color: string;
+    healthImplications: string;
+    cautionaryStatement: string;
+  };
+  healthImpact: {
+    minutesLostPerDay: number;
+    daysLostPerYear: number;
+    riskLevel: string;
+  };
+}
+
+// Animated Counter Component
+function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: number }) {
+  const [display, setDisplay] = useState(0);
+  
+  useEffect(() => {
+    const duration = 1500;
+    const steps = 60;
+    const increment = value / steps;
+    let current = 0;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= value) {
+        setDisplay(value);
+        clearInterval(timer);
+      } else {
+        setDisplay(current);
+      }
+    }, duration / steps);
+    
+    return () => clearInterval(timer);
+  }, [value]);
+  
+  return <span>{display.toFixed(decimals)}</span>;
+}
+
+export default function Home() {
+  const [aqi, setAqi] = useState<string>('');
+  const [result, setResult] = useState<CalculationResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const calculateCigarettes = useCallback(async (aqiOverride?: number) => {
+    const aqiValue = aqiOverride ?? parseInt(aqi);
+    if (isNaN(aqiValue) || aqiValue < 0 || aqiValue > 500) {
+      setError('Please enter a valid AQI (0–500)');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aqi: aqiValue }),
+      });
+
+      if (!response.ok) throw new Error('Calculation failed');
+      const data = await response.json();
+
+      // Normalize Java backend response shape to match frontend interface
+      const normalized: CalculationResult = {
+        aqi: data.aqi,
+        pm25: data.pm25,
+        cigarettes: {
+          perDay: data.cigarettes?.perDay ?? 0,
+          perWeek: data.cigarettes?.perWeek ?? 0,
+          perMonth: data.cigarettes?.perMonth ?? 0,
+          perYear: data.cigarettes?.perYear ?? 0,
+          packsPerMonth: data.cigarettes?.packsPerMonth ?? 0,
+        },
+        level: {
+          category: data.level?.category ?? '',
+          color: data.level?.color ?? '#666',
+          healthImplications: data.level?.healthImplications ?? '',
+          cautionaryStatement: data.level?.cautionaryStatement ?? '',
+        },
+        healthImpact: {
+          minutesLostPerDay: data.healthImpact?.minutesLostPerDay ?? 0,
+          daysLostPerYear: data.healthImpact?.daysLostPerYear ?? 0,
+          riskLevel: data.healthImpact?.riskLevel ?? 'Unknown',
+        },
+      };
+      setResult(normalized);
+    } catch {
+      setError('Failed to connect to the Java backend. Make sure it is running.');
+    } finally {
+      setLoading(false);
+    }
+  }, [aqi]);
+
+  const detectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setLocationLoading(true);
+    setLocationError(null);
+    setLocationLabel(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(
+            `${API_URL}/api/aqi/location?lat=${latitude}&lng=${longitude}`
+          );
+          if (!res.ok) throw new Error('Location AQI fetch failed');
+          const data = await res.json();
+
+          const fetchedAqi = data.aqi?.toString() ?? '0';
+          setAqi(fetchedAqi);
+          setLocationLabel(`📍 ${data.location ?? `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`} — AQI ${data.aqi}`);
+          setLocationLoading(false);
+          // Auto-calculate after location fetch
+          await calculateCigarettes(data.aqi);
+        } catch {
+          setLocationError('Could not fetch AQI for your location. Enter manually.');
+          setLocationLoading(false);
+        }
+      },
+      (err) => {
+        const msg =
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission denied. Please allow access and try again.'
+            : 'Unable to determine your location.';
+        setLocationError(msg);
+        setLocationLoading(false);
+      },
+      { timeout: 10000, maximumAge: 300000 }
+    );
+  }, [calculateCigarettes]);
+
+  const quickValues = [50, 100, 150, 200, 300, 400];
+
+  return (
+    <main className="min-h-screen bg-[#0a0a0f] text-white relative overflow-hidden">
+      {/* Premium Background Effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-radial from-emerald-500/10 via-transparent to-transparent blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[400px] bg-gradient-radial from-cyan-500/5 via-transparent to-transparent blur-3xl" />
+        <div className="absolute top-1/2 right-0 w-[500px] h-[500px] bg-gradient-radial from-teal-500/5 via-transparent to-transparent blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:60px_60px]" />
+      </div>
+
+      <div className="relative z-10 container mx-auto px-4 py-16 max-w-6xl">
+        {/* Header */}
+        <header className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-8">
+            <Wind className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm font-medium text-emerald-400">Research-Based Calculator</span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
+            <span className="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
+              AQI to Cigarette
+            </span>
+            <span className="block mt-2 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+              Calculator
+            </span>
+          </h1>
+          
+          <p className="text-lg text-white/50 max-w-2xl mx-auto leading-relaxed">
+            Based on Berkeley Earth research methodology. Understand the real health impact 
+            of air pollution in terms everyone can relate to.
+          </p>
+        </header>
+
+        {/* Calculator Card */}
+        <div className="max-w-2xl mx-auto mb-16">
+          <div className="relative">
+            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-3xl blur-xl opacity-50" />
+            
+            <div className="relative bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-8">
+              
+              {/* Auto-detect Location Button */}
+              <div className="mb-6">
+                <button
+                  onClick={detectLocation}
+                  disabled={locationLoading}
+                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {locationLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Detecting your location…
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-4 h-4" />
+                      Auto-detect AQI from my location
+                    </>
+                  )}
+                </button>
+
+                {locationLabel && (
+                  <div className="mt-3 flex items-center gap-2 text-emerald-400/80 text-xs bg-emerald-500/10 rounded-xl px-4 py-2.5">
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                    {locationLabel}
+                  </div>
+                )}
+
+                {locationError && (
+                  <div className="mt-3 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 rounded-xl px-4 py-2.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    {locationError}
+                  </div>
+                )}
+
+                <div className="relative my-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/10" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="px-3 text-xs text-white/30 bg-[#0a0a0f]">or enter manually</span>
+                  </div>
+                </div>
+              </div>
+
+              <label className="block text-sm font-medium text-white/60 mb-4">
+                Enter Air Quality Index Value
+              </label>
+              
+              <div className="flex gap-4">
+                <div className="relative flex-1">
+                  <Input
+                    type="number"
+                    placeholder="0 - 500"
+                    value={aqi}
+                    onChange={(e) => setAqi(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && calculateCigarettes()}
+                    className="h-16 text-xl bg-white/5 border-white/10 rounded-2xl pl-6 text-white placeholder:text-white/30 focus:border-emerald-500/50 focus:ring-emerald-500/20"
+                    min="0"
+                    max="500"
+                  />
+                </div>
+                
+                <Button
+                  onClick={() => calculateCigarettes()}
+                  disabled={loading}
+                  className="h-16 px-10 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold text-lg shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:shadow-emerald-500/40"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Calculate'}
+                </Button>
+              </div>
+
+              {/* Quick Select */}
+              <div className="mt-6 flex flex-wrap gap-2">
+                {quickValues.map((val) => (
+                  <button
+                    key={val}
+                    onClick={() => setAqi(val.toString())}
+                    className="px-5 py-2.5 rounded-xl text-sm font-medium bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200"
+                  >
+                    AQI {val}
+                  </button>
+                ))}
+              </div>
+
+              {error && (
+                <div className="mt-6 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-4">
+                  <AlertTriangle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        {result && (
+          <div className="space-y-8">
+            {/* Main Result Card */}
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-emerald-500/20 rounded-3xl blur-xl opacity-40" />
+              
+              <div className="relative bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-10">
+                <div className="grid lg:grid-cols-2 gap-12 items-center">
+                  {/* Circular Gauge */}
+                  <div className="flex justify-center">
+                    <div className="relative">
+                      <svg viewBox="0 0 200 200" className="w-72 h-72 md:w-80 md:h-80">
+                        <defs>
+                          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor={result.level.color} />
+                            <stop offset="100%" stopColor={result.level.color} stopOpacity="0.5" />
+                          </linearGradient>
+                          <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                            <feMerge>
+                              <feMergeNode in="coloredBlur"/>
+                              <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                          </filter>
+                        </defs>
+
+                        <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+                        <circle
+                          cx="100" cy="100" r="85"
+                          fill="none"
+                          stroke="url(#gaugeGrad)"
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(result.aqi / 500) * 534} 534`}
+                          transform="rotate(-90 100 100)"
+                          filter="url(#glow)"
+                          className="transition-all duration-1000"
+                        />
+
+                        <text x="100" y="85" textAnchor="middle" className="fill-white/40 text-xs font-medium">
+                          EQUIVALENT TO
+                        </text>
+                        <text x="100" y="115" textAnchor="middle" className="fill-white font-bold" style={{ fontSize: '36px' }}>
+                          {result.cigarettes.perDay.toFixed(1)}
+                        </text>
+                        <text x="100" y="140" textAnchor="middle" className="fill-white/60 text-sm">
+                          cigarettes/day
+                        </text>
+                      </svg>
+
+                      <div 
+                        className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full font-bold text-sm shadow-lg"
+                        style={{ backgroundColor: result.level.color, color: '#fff' }}
+                      >
+                        AQI {result.aqi} — {result.level.category}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cigarette Visualization */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white/80 mb-6 text-center">
+                      Visual Representation
+                    </h3>
+                    
+                    <div className="grid grid-cols-5 gap-3 max-w-sm mx-auto">
+                      {Array.from({ length: Math.min(Math.ceil(result.cigarettes.perDay), 15) }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="group relative"
+                          style={{
+                            animation: `fadeSlideUp 0.4s ease-out forwards`,
+                            animationDelay: `${i * 60}ms`,
+                            opacity: 0
+                          }}
+                        >
+                          <div className="relative h-20 w-6 mx-auto transform transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1">
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-1 bg-black/30 rounded-full blur-sm" />
+                            <div className="absolute bottom-0 w-full h-6 rounded-b-sm overflow-hidden">
+                              <div className="w-full h-full bg-gradient-to-b from-[#E8B87D] via-[#D4A56A] to-[#C4956A] shadow-inner" />
+                            </div>
+                            <div className="absolute bottom-6 w-full h-10 bg-gradient-to-r from-[#FAFAFA] via-white to-[#F5F5F5] shadow-sm" />
+                            <div className="absolute top-0 w-full h-4 rounded-t-sm overflow-hidden">
+                              <div className="absolute top-0 w-full h-2 bg-gradient-to-b from-[#9E9E9E] to-[#757575]" />
+                              <div className="absolute bottom-0 w-full h-2 bg-gradient-to-t from-[#FF6B35] via-[#FF8C42] to-[#666]">
+                                <div className="absolute inset-0 bg-gradient-to-t from-orange-500 to-transparent" style={{ animation: 'pulse 1s ease-in-out infinite' }} />
+                              </div>
+                              <div className="absolute -top-1 -left-1 -right-1 h-4 bg-orange-500/40 blur-md rounded-full" style={{ animation: 'pulse 0.8s ease-in-out infinite' }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {result.cigarettes.perDay > 15 && (
+                      <p className="text-center text-red-400 text-sm mt-4 font-medium">
+                        + {Math.ceil(result.cigarettes.perDay - 15)} more cigarettes
+                      </p>
+                    )}
+
+                    {/* Risk Level Badge */}
+                    <div className="mt-6 text-center">
+                      <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border"
+                        style={{
+                          borderColor: result.level.color + '60',
+                          color: result.level.color,
+                          backgroundColor: result.level.color + '15',
+                        }}>
+                        <Flame className="w-3 h-3" />
+                        Risk Level: {result.healthImpact.riskLevel}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { icon: Wind, label: 'PM2.5 Level', value: `${result.pm25}`, unit: 'µg/m³', color: 'emerald' },
+                { icon: TrendingUp, label: 'Weekly Impact', value: result.cigarettes.perWeek.toFixed(1), unit: 'cigs', color: 'cyan' },
+                { icon: Clock, label: 'Life Lost/Day', value: result.healthImpact.minutesLostPerDay.toFixed(0), unit: 'min', color: 'amber' },
+                { icon: Calendar, label: 'Packs/Month', value: result.cigarettes.packsPerMonth.toFixed(1), unit: 'packs', color: 'rose' },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-5 hover:bg-white/10 transition-colors"
+                >
+                  <stat.icon className={`w-5 h-5 text-${stat.color}-400 mb-3`} />
+                  <p className="text-white/40 text-xs mb-1">{stat.label}</p>
+                  <p className="text-2xl font-bold text-white">
+                    <AnimatedNumber value={parseFloat(stat.value)} decimals={stat.value.includes('.') ? 1 : 0} />
+                    <span className="text-sm font-normal text-white/40 ml-1">{stat.unit}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Health Info Cards */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <h3 className="font-semibold text-white">Health Implications</h3>
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed">{result.level.healthImplications}</p>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <h3 className="font-semibold text-white">Recommended Precautions</h3>
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed">{result.level.cautionaryStatement}</p>
+              </div>
+            </div>
+
+            {/* Annual Impact Summary */}
+            <div className="bg-gradient-to-r from-white/5 to-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/5 p-8">
+              <h3 className="text-center text-white/60 text-sm font-medium mb-8">ANNUAL IMPACT PROJECTION</h3>
+              
+              <div className="grid grid-cols-3 gap-8 text-center">
+                <div>
+                  <p className="text-4xl md:text-5xl font-bold text-white mb-2">
+                    <AnimatedNumber value={result.cigarettes.perYear} decimals={0} />
+                  </p>
+                  <p className="text-white/40 text-sm">Cigarettes/Year</p>
+                </div>
+                <div>
+                  <p className="text-4xl md:text-5xl font-bold text-red-400 mb-2">
+                    <AnimatedNumber value={result.healthImpact.daysLostPerYear} decimals={1} />
+                  </p>
+                  <p className="text-white/40 text-sm">Days Lost/Year</p>
+                </div>
+                <div>
+                  <p className="text-4xl md:text-5xl font-bold text-white mb-2">
+                    <AnimatedNumber value={result.cigarettes.perYear / 20} decimals={0} />
+                  </p>
+                  <p className="text-white/40 text-sm">Packs/Year</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Methodology */}
+            <div className="text-center py-8">
+              <p className="text-white/30 text-xs max-w-2xl mx-auto">
+                Calculation based on Berkeley Earth Research: 22 µg/m³ PM2.5 = 1 cigarette equivalent.
+                AQI to PM2.5 conversion follows US EPA standards. Health impact estimates based on peer-reviewed medical research.
+                Location AQI data sourced from Open-Meteo Air Quality API.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes smokeFloat {
+          0% { transform: translateY(0) scale(1); opacity: 0.6; }
+          100% { transform: translateY(-30px) scale(2); opacity: 0; }
+        }
+      `}} />
+    </main>
+  );
+}
