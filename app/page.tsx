@@ -360,7 +360,7 @@ function AnimatedNumber({ value, decimals = 1, suffix = '' }: { value: number; d
     return () => clearInterval(timer);
   }, [value]);
 
-  return <span>{display.toFixed(decimals)}{suffix}</span>;
+  return <>{display.toFixed(decimals)}{suffix}</>;
 }
 
 export default function Home() {
@@ -542,10 +542,9 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Hierarchical Code Explorer */}
-              <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-auto min-h-[500px] md:h-[700px] backdrop-blur-3xl">
+              <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px] md:h-[750px] backdrop-blur-3xl">
                 {/* Sidebar Explorer */}
-                <div className="w-full md:w-72 border-r border-white/10 bg-white/[0.02] p-4 md:p-6 flex flex-col overflow-x-hidden">
+                <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-white/10 bg-white/[0.02] p-6 flex flex-col overflow-hidden">
                   <div className="flex items-center gap-3 mb-6 md:mb-8 px-2">
                     <FolderTree className="w-5 h-5 text-cyan-400" />
                     <span className="text-[10px] md:text-xs font-bold text-white/40 tracking-widest uppercase">java-backend</span>
@@ -767,14 +766,14 @@ export default function Home() {
         {result && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-            {/* Wikipedia City Info Section */}
-            {result.placeInfo && (
+            {/* City Information Section */}
+            {(result.placeInfo || result.location) && (
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-2xl">
-                {result.placeInfo.imageUrl && (
+                {result.placeInfo?.imageUrl && (
                   <div className="w-full md:w-1/3 h-64 md:h-auto overflow-hidden">
                     <img
                       src={result.placeInfo.imageUrl}
-                      alt={result.placeInfo.name}
+                      alt={result.placeInfo.name || result.location}
                       className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
                     />
                   </div>
@@ -782,19 +781,21 @@ export default function Home() {
                 <div className="p-8 flex-1">
                   <div className="flex items-center gap-3 mb-4">
                     <MapPin className="w-5 h-5 text-emerald-400" />
-                    <h2 className="text-2xl font-bold text-white">{result.placeInfo.name}</h2>
+                    <h2 className="text-2xl font-bold text-white">{result.placeInfo?.name || result.location || 'Detected Location'}</h2>
                   </div>
                   <p className="text-white/60 text-sm leading-relaxed mb-6">
-                    {result.placeInfo.summary}
+                    {result.placeInfo?.summary || "Direct air quality analysis for this location, enriched with real-time environmental data."}
                   </p>
-                  <a
-                    href={result.placeInfo.wikipediaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 uppercase tracking-wider"
-                  >
-                    Read more on Wikipedia →
-                  </a>
+                  {result.placeInfo?.wikipediaUrl && (
+                    <a
+                      href={result.placeInfo.wikipediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 uppercase tracking-wider"
+                    >
+                      Explore Urban Area Insights →
+                    </a>
+                  )}
                 </div>
               </div>
             )}
@@ -983,7 +984,7 @@ export default function Home() {
               <p className="text-white/30 text-xs max-w-2xl mx-auto">
                 Calculation based on Berkeley Earth Research: 22 µg/m³ PM2.5 = 1 cigarette equivalent.
                 AQI to PM2.5 conversion follows US EPA standards. Health impact estimates based on peer-reviewed medical research.
-                Location data enriched via Open-Meteo and Wikipedia Rest API.
+                Location data enriched via Open-Meteo and Teleport Urban API.
               </p>
             </div>
           </div>

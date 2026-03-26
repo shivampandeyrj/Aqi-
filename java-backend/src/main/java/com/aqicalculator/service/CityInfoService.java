@@ -44,15 +44,24 @@ public class CityInfoService {
                     .build();
 
             HttpResponse<String> searchResponse = httpClient.send(searchRequest, HttpResponse.BodyHandlers.ofString());
-            if (searchResponse.statusCode() != 200) return null;
+            logger.info("Teleport search for '{}' returned status: {}", searchTitle, searchResponse.statusCode());
+            
+            if (searchResponse.statusCode() != 200) {
+                return new PlaceInfo(searchTitle, "A beautiful location captured by our environmental analysis.", null, null);
+            }
 
             JsonNode searchRoot = objectMapper.readTree(searchResponse.body());
             JsonNode results = searchRoot.path("_embedded").path("city:search-results");
             
-            if (results.size() == 0) return null;
+            if (results.size() == 0) {
+                logger.warn("No Teleport results for city search: {}", searchTitle);
+                return new PlaceInfo(searchTitle, "Regional monitoring area with active air quality tracking.", null, null);
+            }
 
             // 2. Get the city item
             String cityUrl = results.get(0).path("_links").path("city:item").path("href").asText();
+            logger.info("Found Teleport city item: {}", cityUrl);
+            
             HttpRequest cityRequest = HttpRequest.newBuilder().uri(URI.create(cityUrl)).GET().build();
             HttpResponse<String> cityResponse = httpClient.send(cityRequest, HttpResponse.BodyHandlers.ofString());
             
@@ -60,17 +69,19 @@ public class CityInfoService {
             String uaUrl = cityRoot.path("_links").path("city:urban_area").path("href").asText(null);
 
             if (uaUrl == null) {
-                return new PlaceInfo(searchTitle, "A beautiful location captured by our analysis.", null, null);
+                logger.info("No urban area link for {}, using generic PlaceInfo", searchTitle);
+                return new PlaceInfo(searchTitle, "A unique location enriched with real-time AQI and health impact data.", null, null);
             }
 
             // 3. Get Urban Area scores (for summary) and images
             String scoresUrl = uaUrl + "scores/";
             String imagesUrl = uaUrl + "images/";
+            logger.info("Fetching urban area details: scores={}, images={}", scoresUrl, imagesUrl);
 
             HttpRequest scoresReq = HttpRequest.newBuilder().uri(URI.create(scoresUrl)).GET().build();
             HttpRequest imagesReq = HttpRequest.newBuilder().uri(URI.create(imagesUrl)).GET().build();
 
-            String summary = "A significant urban area monitored for air quality impact.";
+            String summary = "A significant urban center monitored for atmospheric particulate matter (PM2.5).";
             String imageUrl = null;
 
             try {
@@ -86,15 +97,15 @@ public class CityInfoService {
                             .path("photos").get(0).path("image").path("mobile").asText(null);
                 }
             } catch (Exception e) {
-                logger.warn("Partial Teleport fetch failure: {}", e.getMessage());
+                logger.warn("Partial Teleport fetch failure for {}: {}", searchTitle, e.getMessage());
             }
 
-            logger.info("Teleport fetch success for: {}", searchTitle);
+            logger.info("Teleport enrichment successful for: {}", searchTitle);
             return new PlaceInfo(searchTitle, summary, imageUrl, uaUrl);
 
         } catch (Exception e) {
-            logger.error("Error fetching from Teleport: {}", e.getMessage());
+            logger.error("Critical error in CityInfoService for {}: {}", cityName, e.getMessage());
+            return new PlaceInfo(cityName.split(",")[0].trim(), "Environmental data point with active secondary pollutant monitoring.", null, null);
         }
-        return null;
     }
 }
