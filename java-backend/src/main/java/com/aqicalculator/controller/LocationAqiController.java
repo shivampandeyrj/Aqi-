@@ -49,9 +49,13 @@ public class LocationAqiController {
             String cityName = (String) result.get("location");
             result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
             
-            // Enrich with full Calculation Response data
-            int aqi = (int) result.get("aqi");
-            CalculationResponse details = aqiCalculatorService.calculate(aqi);
+            // Enrich with full Calculation Response data (Using 2024 EPA standards from raw PM2.5)
+            double pm25 = (double) result.get("pm25");
+            CalculationResponse details = aqiCalculatorService.calculateFromPm25(pm25);
+            
+            // Sync the main result AQI with our calculated one
+            result.put("aqi", details.getAqi());
+            
             details.setLocation(cityName);
             result.put("details", details);
             

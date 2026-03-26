@@ -22,17 +22,37 @@ public class AqiCalculatorService {
     /**
      * Main calculation method - converts AQI to cigarette equivalent
      */
-    public CalculationResponse calculate(int aqi) {
-        // Validate AQI range
-        if (aqi < 0 || aqi > 500) {
-            throw new IllegalArgumentException("AQI must be between 0 and 500");
-        }
+    public int calculateAqiFromPm25(double pm25) {
+        for (double[] bp : AQI_BREAKPOINTS) {
+            double cLow = bp[0];
+            double cHigh = bp[1];
+            double iLow = bp[2];
+            double iHigh = bp[3];
 
+            if (pm25 >= cLow && pm25 <= cHigh) {
+                // EPA formula: I = ((Ih - Il) / (Ch - Cl)) * (C - Cl) + Il
+                double aqi = ((iHigh - iLow) / (cHigh - cLow)) * (pm25 - cLow) + iLow;
+                return (int) Math.round(aqi);
+            }
+        }
+        // Fallback or beyond hazardous range
+        if (pm25 > 500.4) return 500;
+        return (int) Math.round(pm25 * 2.0);
+    }
+
+    public CalculationResponse calculate(int aqi) {
+        double pm25 = convertAqiToPm25(aqi);
+        return createResponse(aqi, pm25);
+    }
+
+    public CalculationResponse calculateFromPm25(double pm25) {
+        int aqi = calculateAqiFromPm25(pm25);
+        return createResponse(aqi, pm25);
+    }
+
+    private CalculationResponse createResponse(int aqi, double pm25) {
         CalculationResponse response = new CalculationResponse();
         response.setAqi(aqi);
-
-        // Convert AQI to PM2.5
-        double pm25 = convertAqiToPm25(aqi);
         response.setPm25(Math.round(pm25 * 10.0) / 10.0);
 
         // Calculate cigarette equivalent
@@ -48,8 +68,8 @@ public class AqiCalculatorService {
         response.setHealthImpact(calculateHealthImpact(cigarettesPerDay, aqi));
 
         // Meta information
-        response.setCalculationMethod("Berkeley Earth Research Formula");
-        response.setDataSource("EPA AQI Standards & Berkeley Earth Study");
+        response.setCalculationMethod("Berkeley Earth Research Formula (2024 EPA)");
+        response.setDataSource("WAQI Observations & Berkeley Earth Study");
 
         return response;
     }
