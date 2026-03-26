@@ -1,17 +1,13 @@
-# Use a lightweight JDK 17 image
-FROM eclipse-temurin:17-jdk-alpine
-
-# Set the working directory
+# Stage 1: Build the application
+FROM maven:3.8.5-openjdk-17 AS build
 WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
 
-# Copy the pom.xml and source code
-COPY . .
-
-# Build the application
-RUN ./mvnw clean package -DskipTests || mvn clean package -DskipTests
-
-# Expose the port
+# Stage 2: Run the application
+FROM eclipse-temurin:17-jdk-alpine
+WORKDIR /app
+COPY --from=build /app/target/aqi-cigarette-calculator-1.0.0.jar app.jar
 EXPOSE 8080
-
-# Run the application
-CMD ["java", "-jar", "target/aqi-cigarette-calculator-1.0.0.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
