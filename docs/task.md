@@ -11,4 +11,8 @@
 - [x] Fix backend compilation error in `LocationAqiController.java`
 - [x] Implement Search Suggestions (Autocomplete) in backend
 - [x] Add Search Suggestions UI to frontend
+- [x] Investigate AQI standard discrepancies (US vs Regional standards)
+- [x] Refine `AqiCalculatorService.java` Hazardous range breakpoints
+- [x] Verify WAQI API data source for specific test locations
+- [x] Align AQI with WAQI Website (Station Reported)
 - [x] Final deployment and documentation refresh

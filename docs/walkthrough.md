@@ -14,8 +14,9 @@ I've added a powerful city autocomplete feature. As you type in the search bar, 
 - **Frontend**: Implemented a modern, debounced dropdown UI that appears as you type.
 
 ### 3. Integrated 2024 EPA Standards
-The platform now strictly adheres to the **February 2024 PM2.5 breakpoints**. All searches, suggestions, and geometric lookups are funneled through this high-precision derivation logic.
-- **Accuracy**: Derives AQI manually from raw PM2.5 concentrations from official monitoring stations.
+- **2024 EPA PM2.5 Standards**: Implemented the latest official breakpoints (Feb 2024). Note: These are stricter than the 2012 standards often seen on other sites, leading to slightly higher (more conservative) AQI values for the same pollution levels.
+- **Search & Suggestions**: Dual-API search (WAQI for stations, Teleport for cities) with debounced autocomplete and click-outside handling.
+- **Station Proximity**: Real-time Haversine distance calculation to the monitoring station with safety indicators.
 
 ## How to Verify
 1. **Autocomplete**: Start typing "New" in the search bar. You should see "New York", "Newcastle", etc., in a stylish dropdown.
