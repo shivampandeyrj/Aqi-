@@ -202,14 +202,16 @@ public class LocationAqiService {
     
     JsonNode root = new ObjectMapper().readTree(response.body());
     JsonNode data = root.path("data");
-    
     double pm25 = data.path("iaqi").path("pm25").path("v").asDouble();
-    int aqi = data.path("aqi").asInt();
     
-    return Map.of("aqi", aqi, "pm25", pm25, "location", data.path("city").path("name").asText());
+    // Core Fix: Use BigDataCloud for city name, WAQI for data
+    String location = fetchLocationFromBDC(lat, lng); 
+    if (location == null) location = data.path("city").path("name").asText();
+    
+    return Map.of("aqi", data.path("aqi").asInt(), "pm25", pm25, "location", location);
   }
-}`,
-    description: 'The primary gateway to the WAQI network, handling station-level IoT data extraction and token authentication.'
+} // + fetchLocationFromBDC private method`,
+    description: 'A dual-source orchestrator: Extracts pollutant IoT data from WAQI while using BigDataCloud for high-fidelity reverse geocoding.'
   },
   'CityInfoService.java': {
     name: 'CityInfoService.java',
