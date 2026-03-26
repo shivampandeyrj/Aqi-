@@ -22,7 +22,12 @@
 - [x] Verify live deployment on mobile and desktop
 
 ## UI & Data Visibility Refinement
+- [x] Fix broken animation and visibility in Cigarette Visualization (Impact section)
+- [x] Fix city info data flow (pass location name to result state)
 - [x] Fix AnimatedNumber SVG rendering issue (invisible counter)
+
+
+
 - [x] Fix technical explorer sidebar disappearance bug
 - [x] Implement robust fallbacks for Teleport city search
 - [x] Update UI text (Wikipedia -> Teleport)

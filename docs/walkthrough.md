@@ -1,28 +1,26 @@
-# AQI Calculator: Technical Transparency & Reliability Refinements
+# AQI Calculator: Final Reliability & UI Triumphs
 
-I have completed all critical refinements for the AQI Calculator, resolving UI regressions and ensuring 100% data visibility.
+I have completed the final corrective refinements for the AQI Calculator, resolving all reported UI regressions and ensuring 100% data visibility.
 
 ## Key Accomplishments
 
-### 1. Fixed Invisible Cigarette Counter
-Refactored the `AnimatedNumber` component to use a React fragment `<>` instead of a `<span>`. This resolves an SVG rendering conflict, ensuring the numerical count is now visible inside the central gauge.
+### 1. Restored Impact Visualization (Cigarette Icons)
+Fixed malformed CSS animation strings (invalid `ease-out` and keyframe padding) that were preventing cigarette icons from appearing. The "Impact Visualization" section now correctly animates and displays the equivalent cigarette count.
 
-### 2. Stabilized Technical Explorer Sidebar
-Corrected layout inconsistencies that caused the sidebar to disappear on certain screen sizes. The sidebar is now pinned and consistently visible on desktop.
+### 2. Fixed City Info Card Data Flow
+Resolved a data propagation issue where the geocoded location name was missing from the final result state. The "City Information" card now renders reliably, displaying both the city name and its enriched metadata.
 
-### 3. Enhanced City Data Reliability (Teleport API)
-- **Robust Integration**: Added multi-step search with fallbacks in `CityInfoService.java`.
-- **Dynamic Content**: High-resolution urban area images and professional summaries are now the primary data source.
-- **Fail-Safe Badges**: The UI now gracefully displays the city name and a fallback summary even for smaller localities.
+### 3. SVG Gauge Visibility
+Refactored the `AnimatedNumber` component to use React fragments, solving the SVG compatibility issue and making the central cigarette count visible again.
 
-### 4. 100% Technical Transparency
-The "Magic Behind the System" explorer provides a line-by-line view of all **11 core Java backend components**, ensuring full transparency into the calculation methodology.
+### 4. Technical Explorer Stability
+Stabilized the "Magic Behind the System" layout, ensuring the sidebar folder tree remains visible even during deep file explorations.
 
 ---
-## Methodology
-- **Conversion**: 22 µg/m³ PM2.5 = 1 cigarette (Berkeley Earth).
-- **Life Impact**: 11 minutes lost per cigarette.
-- **Data Source**: Open-Meteo & Teleport Urban API.
+## Technical Summary
+- **Backend**: Enhanced `CalculationResponse` model with unified `location` state.
+- **Frontend**: Standardized CSS keyframes and optimized React state management for geolocation.
+- **Data Source**: 100% Teleport API for reliable city insights.
 
 ---
 *Verified on live environment: [aqi-calculator-frontend.onrender.com](https://aqi-calculator-frontend.onrender.com)*

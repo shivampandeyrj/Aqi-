@@ -7,22 +7,19 @@ This plan addresses the missing cigarette counter, the disappearing sidebar in t
 ### Frontend (UI Fixes)
 
 #### [MODIFY] [page.tsx](file:///home/shivam/Downloads/meet-main/app/page.tsx)
-- **SVG Compatibility**: Update `AnimatedNumber` component to return a React fragment `<>` instead of `<span>`. This ensures the text renders correctly inside the SVG `<text>` element.
-- **Sidebar Visibility**:
-    - Ensure the sidebar `div` has consistent width and visibility on desktop.
-    - Change `w-full md:w-72` to a more stable layout if needed.
-    - Fix potential layout shifts when a file is selected.
-- **City Info Fallback**:
-    - If `result.placeInfo` is null, still show the city name from `result.location` in a simplified badge at the top.
-    - Update "Read more on Wikipedia" to "Teleport Urban Area Insights".
-    - Update footer methodology text to mention "Teleport API".
+- **Cigarette Visualization Fix**:
+    - Correct the malformed `animation` string by removing invalid spaces in `ease-out`.
+    - Fix invalid keyframe percentages (e.g., `0 %` -> `0%`) in the `<style>` block.
+- **Location Data Flow**:
+    - Update `calculateCigarettes` to accept an optional `locationName` parameter.
+    - Pass the location name from `detectLocation` into `calculateCigarettes` to ensure the city card renders.
+- **SVG Compatibility**: Update `AnimatedNumber` component to return a React fragment `<>` instead of `<span>`.
 
-### Java Backend (Data Reliability)
+### Java Backend (Data Consistency)
 
-#### [MODIFY] [CityInfoService.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/service/CityInfoService.java)
-- **Robust Search**: Add a fallback to the search if the exact cityName fails.
-- **Generic Fallback**: If no urban area is found, return a `PlaceInfo` object with a generic summary and the city name, rather than returning `null`.
-- **Improved Logging**: Add detailed logs for each step of the Teleport fetch.
+#### [MODIFY] [CalculationResponse.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/model/CalculationResponse.java)
+- Add a `location` field (String) to ensure the unified response can carry city names when enriched.
+
 
 ## Verification Plan
 
