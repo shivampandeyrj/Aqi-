@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import { Wind, Loader2, AlertTriangle, TrendingUp, Heart, Clock, Calendar, Flame, Shield, MapPin, CheckCircle, Code2, Box, Zap, Share2, FileJson, FolderTree, Folder, FileCode, Cpu, Activity, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -395,6 +395,7 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any, locationName?: string) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
@@ -521,6 +522,17 @@ export default function Home() {
     const timeoutId = setTimeout(fetchSuggestions, 300);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
+
+  // Click outside suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -768,11 +780,14 @@ export default function Home() {
               {/* Search Bar & Location Discovery */}
               <div className="mb-8">
                 <form onSubmit={handleSearch} className="flex gap-2 group mb-6">
-                  <div className="relative flex-1">
+                  <div className="relative flex-1" ref={searchRef}>
                     <Input
                       placeholder="Search city (e.g. New York, Delhi...)"
                       value={searchQuery}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (suggestions.length > 0) setShowSuggestions(true);
+                      }}
                       className="h-14 bg-white/5 border-white/10 rounded-2xl pl-12 text-white placeholder:text-white/30 focus:border-emerald-500/50 transition-all"
                     />
                     <Wind className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-emerald-400 transition-colors" />
