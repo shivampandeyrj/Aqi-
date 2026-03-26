@@ -17,6 +17,8 @@ import java.util.Map;
 @Service
 public class LocationAqiService {
 
+    private static final Logger logger = LoggerFactory.getLogger(LocationAqiService.class);
+
     private static final String REVERSE_GEOCODE_URL =
             "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
 
