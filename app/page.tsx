@@ -930,10 +930,23 @@ export default function Home() {
                   </div>
                 )}
                 <div className="p-8 flex-1">
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-2">
                     <MapPin className="w-5 h-5 text-emerald-400" />
                     <h2 className="text-2xl font-bold text-white">{result.placeInfo?.name || result.location || 'Detected Location'}</h2>
                   </div>
+
+                  {result.station && (
+                    <div className="flex items-center gap-2 mb-6 text-[10px] font-mono text-white/40 uppercase tracking-wider">
+                      <Database className="w-3 h-3" />
+                      <span>Data via: {result.station}</span>
+                      {result.stationDistance !== undefined && (
+                        <span className={`ml-2 px-2 py-0.5 rounded ${result.stationDistance > 25 ? 'bg-amber-500/20 text-amber-400' : 'bg-white/5'}`}>
+                          {result.stationDistance} km away
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-white/60 text-sm leading-relaxed mb-6">
                     {result.placeInfo?.summary || "Direct air quality analysis for this location, enriched with real-time environmental data."}
                   </p>

@@ -13,7 +13,7 @@ public class AqiCalculatorService {
         {35.5, 55.4, 101, 150},   // Unhealthy for Sensitive
         {55.5, 125.4, 151, 200},  // Unhealthy
         {125.5, 225.4, 201, 300}, // Very Unhealthy
-        {225.5, 500.4, 301, 500}  // Hazardous
+        {225.5, 325.4, 301, 500}  // Hazardous
     };
 
     // Berkeley Earth Research: 22 µg/m³ PM2.5 = 1 cigarette

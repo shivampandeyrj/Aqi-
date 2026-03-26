@@ -98,8 +98,14 @@ public class LocationAqiService {
         result.put("station", dataNode.path("city").path("name").asText("Unknown Station"));
         JsonNode stationGeo = dataNode.path("city").path("geo");
         if (stationGeo.isArray() && stationGeo.size() >= 2) {
-            result.put("stationLatitude", stationGeo.get(0).asDouble());
-            result.put("stationLongitude", stationGeo.get(1).asDouble());
+            double stationLat = stationGeo.get(0).asDouble();
+            double stationLng = stationGeo.get(1).asDouble();
+            result.put("stationLatitude", stationLat);
+            result.put("stationLongitude", stationLng);
+            
+            // Calculate distance in kilometers
+            double distance = calculateDistance(lat, lng, stationLat, stationLng);
+            result.put("stationDistance", Math.round(distance * 10.0) / 10.0);
         }
         
         result.put("source", "WAQI (aqicn.org) Network");
@@ -170,6 +176,17 @@ public class LocationAqiService {
             logger.error("Error during reverse geocoding fallthrough: {}", e.getMessage());
         }
         return String.format("%.4f°, %.4f°", lat, lng);
+    }
+
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371; // Radius of the earth in km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
 }
