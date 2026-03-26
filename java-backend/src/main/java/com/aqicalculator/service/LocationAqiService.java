@@ -2,6 +2,8 @@ package com.aqicalculator.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -17,6 +19,10 @@ public class LocationAqiService {
 
     private static final String REVERSE_GEOCODE_URL =
             "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
+
+    private static final String OPEN_METEO_URL =
+            "https://air-quality-api.open-meteo.com/v1/air-quality" +
+            "?latitude=%s&longitude=%s&current=us_aqi,pm2_5&timezone=auto";
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -88,14 +94,19 @@ public class LocationAqiService {
                 String locality = root.path("locality").asText();
                 String principalSubdivision = root.path("principalSubdivision").asText();
 
+                logger.info("Reverse geocode result: city={}, locality={}, subdivision={}", 
+                        city, locality, principalSubdivision);
+
                 if (!city.isEmpty()) {
                     return city + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
                 } else if (!locality.isEmpty()) {
                     return locality + (principalSubdivision.isEmpty() ? "" : ", " + principalSubdivision);
                 }
+            } else {
+                logger.warn("Reverse geocode failed with status: {}", response.statusCode());
             }
         } catch (Exception e) {
-            // Fallback to coordinates on error
+            logger.error("Error during reverse geocoding: {}", e.getMessage());
         }
         return String.format("%.4f°, %.4f°", lat, lng);
     }

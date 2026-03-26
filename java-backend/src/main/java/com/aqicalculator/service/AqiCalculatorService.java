@@ -130,26 +130,19 @@ public class AqiCalculatorService {
     /**
      * Calculates health impact based on cigarette equivalent and AQI
      */
-    private HealthImpact calculateHealthImpact(double cigarettesPerDay, int aqi, double pm25) {
+    private HealthImpact calculateHealthImpact(double cigarettesPerDay, int aqi) {
         // Each cigarette reduces life expectancy by ~11 minutes (medical research)
         double minutesLostPerDay = cigarettesPerDay * 11;
         double hoursLostPerYear = (minutesLostPerDay * 365) / 60;
         double daysLostPerYear = minutesLostPerDay * 365 / 1440.0;
         
-        // Lives lost per million population calculation
-        // Source: WHO/IHME - Approx 100-150 extra deaths per million per year for every 10 µg/m³ PM2.5 above baseline (5 µg/m³)
-        double excessPm25 = Math.max(0, pm25 - 5.0);
-        double deathsPerTenUg = 120.0; // Conservatively using 120 per million
-        double livesLostPerMillion = (excessPm25 / 10.0) * deathsPerTenUg;
-        
         String riskLevel = determineRiskLevel(aqi);
         String[] healthRisks = getHealthRisks(aqi);
 
         return new HealthImpact(
-            Math.round(hoursLostPerYear * 10.0) / 10.0, // lifeExpectancyLossHours
+            Math.round(hoursLostPerYear * 10.0) / 10.0,
             Math.round(minutesLostPerDay * 10.0) / 10.0,
             Math.round(daysLostPerYear * 10.0) / 10.0,
-            Math.round(livesLostPerMillion * 10.0) / 10.0,
             riskLevel,
             healthRisks
         );
@@ -181,23 +174,20 @@ public class AqiCalculatorService {
                 "Sensitive individuals may notice effects"
             };
         } else if (aqi <= 150) {
-            riskLevel = "High";
-            healthRisks = new String[]{
+            return new String[]{
                 "Increased risk of respiratory symptoms",
                 "Aggravated asthma and heart disease",
                 "Reduced lung function"
             };
         } else if (aqi <= 200) {
-            riskLevel = "Very High";
-            healthRisks = new String[]{
+            return new String[]{
                 "Significant respiratory effects",
                 "Cardiovascular stress",
                 "Increased hospital admissions",
                 "Premature mortality risk"
             };
         } else {
-            riskLevel = "Severe";
-            healthRisks = new String[]{
+            return new String[]{
                 "Serious respiratory illness",
                 "Heart attack risk increased",
                 "Stroke risk increased",
@@ -205,13 +195,5 @@ public class AqiCalculatorService {
                 "Emergency health conditions possible"
             };
         }
-
-        return new HealthImpact(
-            Math.round(hoursLostPerYear * 10.0) / 10.0,
-            Math.round(minutesLostPerDay * 10.0) / 10.0,
-            Math.round(daysLostPerYear * 10.0) / 10.0,
-            riskLevel,
-            healthRisks
-        );
     }
 }

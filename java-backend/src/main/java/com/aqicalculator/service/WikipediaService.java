@@ -3,6 +3,8 @@ package com.aqicalculator.service;
 import com.aqicalculator.model.PlaceInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -15,6 +17,7 @@ import java.time.Duration;
 
 @Service
 public class WikipediaService {
+    private static final Logger logger = LoggerFactory.getLogger(WikipediaService.class);
 
     private static final String WIKI_API_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/";
     
@@ -55,10 +58,13 @@ public class WikipediaService {
                     summary = summary.substring(0, 297) + "...";
                 }
 
+                logger.info("Wikipedia fetch success for: {}", searchTitle);
                 return new PlaceInfo(searchTitle, summary, imageUrl, wikiUrl);
+            } else {
+                logger.warn("Wikipedia fetch failed for: {} with status: {}", searchTitle, response.statusCode());
             }
         } catch (Exception e) {
-            // Silently fail and return null
+            logger.error("Error fetching from Wikipedia: {}", e.getMessage());
         }
         return null;
     }

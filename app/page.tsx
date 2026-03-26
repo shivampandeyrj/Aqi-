@@ -23,14 +23,15 @@ interface CalculationResult {
     category: string;
     color: string;
     healthImplications: string;
-    cautionaryStatement: string;
+    precautions: string;
   };
   healthImpact: {
     minutesLostPerDay: number;
     daysLostPerYear: number;
-    livesLostPerMillion: number;
     riskLevel: string;
+    healthRisks: string[];
   };
+  location?: string;
   placeInfo?: {
     name: string;
     summary: string;
@@ -39,38 +40,76 @@ interface CalculationResult {
   };
 }
 
-// Full Java Backend Code for the "Magic" section
+// Full Java Backend Code for "Magic Behind the System"
 const JAVA_BACKEND_CODE = `
-// --- AqiCalculatorService.java ---
+/**
+ * SECTION 1: CORE CALCULATION ENGINE (AqiCalculatorService.java)
+ * Converts EPA AQI values into raw PM2.5 and maps them to Cigarette Equivalents.
+ */
 @Service
 public class AqiCalculatorService {
+    private static final double PM25_PER_CIGARETTE = 22.0;
+
     public CalculationResponse calculate(int aqi) {
-        double pm25 = aqiToPm25(aqi);
-        // Berkeley Earth: 22 ug/m3 PM2.5 = 1 cigarette
-        double cigarettesPerDay = pm25 / 22.0;
-
-        // Health Impact Math
-        double minutesLostPerDay = cigarettesPerDay * 11;
-        double daysLostPerYear = (minutesLostPerDay * 365) / 1440.0;
+        double pm25 = convertAqiToPm25(aqi);
         
-        // Lives lost per million (WHO/IHME model)
-        double excessPm25 = Math.max(0, pm25 - 5.0);
-        double deathsPerMillionPerTenUg = 120.0;
-        double livesLostPerMillion = (excessPm25 / 10.0) * deathsPerMillionPerTenUg;
-
-        // ... return structured response
+        // Berkeley Earth Formula: 22 µg/m³ PM2.5 = 1 cigarette/day
+        double cigsPerDay = pm25 / PM25_PER_CIGARETTE;
+        
+        // Impact Logic: 1 cigarette = 11 minutes life expectancy reduction
+        double minsLostDay = cigsPerDay * 11.0;
+        double daysLostYear = (minsLostDay * 365.0) / 1440.0;
+        
+        return new CalculationResponse(aqi, pm25, cigsPerDay, minsLostDay, daysLostYear);
     }
 }
 
-// --- WikipediaService.java ---
+/**
+ * SECTION 2: LIVE LOCATION ENGINE (LocationAqiService.java)
+ * Integrates Open-Meteo for real-time AQI and BigDataCloud for Geocoding.
+ */
+@Service
+public class LocationAqiService {
+    public Map<String, Object> fetchAqi(double lat, double lng) {
+        // 1. Call Open-Meteo Air Quality API
+        // 2. Perform Reverse Geocoding to get human-readable city names
+        String locationName = fetchLocationName(lat, lng);
+        return Map.of("aqi", usAqi, "location", locationName);
+    }
+}
+
+/**
+ * SECTION 3: KNOWLEDGE ENRICHMENT (WikipediaService.java)
+ * Fetches summaries and images to provide local context for the user.
+ */
 @Service
 public class WikipediaService {
-    private static final String WIKI_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
-    
-    public PlaceInfo fetchPlaceInfo(String cityName) {
-        String searchTitle = cityName.split(",")[0].trim();
-        // Fetch summary and image...
-        return new PlaceInfo(name, summary, imageUrl, wikiUrl);
+    public PlaceInfo fetchPlaceInfo(String city) {
+        // Query Wikipedia REST API for the first part of the city name
+        String searchTitle = city.split(",")[0].trim();
+        return wikiApi.fetch("/page/summary/" + searchTitle);
+    }
+}
+
+/**
+ * SECTION 4: INTEGRATION CONTROLLER (LocationAqiController.java)
+ * The REST API hub that orchestrates the entire data flow.
+ */
+@RestController
+@RequestMapping("/api/aqi")
+public class LocationAqiController {
+    @GetMapping("/location")
+    public ResponseEntity<?> analyze(double lat, double lng) {
+        var baseRes = locationService.fetchAqi(lat, lng);
+        var details = aqiService.calculate((int)baseRes.get("aqi"));
+        var wiki = wikipediaService.fetchPlaceInfo((String)baseRes.get("location"));
+        
+        return ResponseEntity.ok(Map.of(
+            "aqi", baseRes.get("aqi"),
+            "location", baseRes.get("location"),
+            "placeInfo", wiki,
+            "details", details
+        ));
     }
 }
 `;
@@ -134,26 +173,27 @@ export default function Home() {
       // Normalize Java backend response shape to match frontend interface
       const normalized: CalculationResult = {
         aqi: data.aqi,
-        pm25: data.pm25,
+        pm25: data.details?.pm25 ?? data.pm25,
         cigarettes: {
-          perDay: data.cigarettes?.perDay ?? 0,
-          perWeek: data.cigarettes?.perWeek ?? 0,
-          perMonth: data.cigarettes?.perMonth ?? 0,
-          perYear: data.cigarettes?.perYear ?? 0,
-          packsPerMonth: data.cigarettes?.packsPerMonth ?? 0,
+          perDay: data.details?.cigarettes?.perDay ?? data.cigarettes?.perDay ?? 0,
+          perWeek: (data.details?.cigarettes?.perDay ?? data.cigarettes?.perDay ?? 0) * 7.0,
+          perMonth: (data.details?.cigarettes?.perDay ?? data.cigarettes?.perDay ?? 0) * 30.0,
+          perYear: (data.details?.cigarettes?.perDay ?? data.cigarettes?.perDay ?? 0) * 365.0,
+          packsPerMonth: ((data.details?.cigarettes?.perDay ?? data.cigarettes?.perDay ?? 0) * 30.0) / 20.0,
         },
         level: {
-          category: data.level?.category ?? '',
-          color: data.level?.color ?? '#666',
-          healthImplications: data.level?.healthImplications ?? '',
-          cautionaryStatement: data.level?.cautionaryStatement ?? '',
+          category: data.details?.level?.category ?? data.level?.category ?? '',
+          color: data.details?.level?.color ?? data.level?.color ?? '#666',
+          healthImplications: data.details?.level?.healthImplications ?? data.level?.healthImplications ?? '',
+          precautions: data.details?.level?.precautions ?? data.level?.precautions ?? '',
         },
         healthImpact: {
-          minutesLostPerDay: data.healthImpact?.minutesLostPerDay ?? 0,
-          daysLostPerYear: data.healthImpact?.daysLostPerYear ?? 0,
-          livesLostPerMillion: data.healthImpact?.livesLostPerMillion ?? 0,
-          riskLevel: data.healthImpact?.riskLevel ?? 'Unknown',
+          minutesLostPerDay: data.details?.healthImpact?.minutesLostPerDay ?? data.healthImpact?.minutesLostPerDay ?? 0,
+          daysLostPerYear: data.details?.healthImpact?.daysLostPerYear ?? data.healthImpact?.daysLostPerYear ?? 0,
+          riskLevel: data.details?.healthImpact?.riskLevel ?? data.healthImpact?.riskLevel ?? 'Unknown',
+          healthRisks: data.details?.healthImpact?.healthRisks ?? data.healthImpact?.healthRisks ?? [],
         },
+        location: data.location,
         placeInfo: placeData ?? data.placeInfo,
       };
       setResult(normalized);
@@ -241,6 +281,172 @@ export default function Home() {
             Powered by a robust Spring Boot backend for real-time accuracy.
           </p>
         </header>
+
+        {/* Technical Magic Section (Moved to Top) */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <button
+            onClick={() => setShowMagic(!showMagic)}
+            className="w-full flex items-center justify-center gap-3 py-4 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"
+          >
+            <Shield className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-bold text-white/70 group-hover:text-white tracking-wide uppercase">
+              {showMagic ? 'Hide Full System Magic' : 'Explore the Magic Behind the System'}
+            </span>
+          </button>
+
+          {showMagic && (
+            <div className="mt-8 animate-in fade-in zoom-in duration-500 space-y-10">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
+                  <h3 className="text-lg font-bold mb-5 flex items-center gap-2 text-emerald-400">
+                    <TrendingUp className="w-4 h-4" /> Mathematical Methodology
+                  </h3>
+                  <ul className="space-y-4 text-sm text-white/50 leading-relaxed">
+                    <li><strong className="text-white">AQI to PM2.5:</strong> Reverse interpolation using US EPA standard breakpoints.</li>
+                    <li><strong className="text-white">Berkeley Earth Conversion:</strong> Every <code className="text-emerald-400 bg-white/5 px-1.5 rounded">22.0 µg/m³</code> = 1 cigarette reduction in health.</li>
+                    <li><strong className="text-white">Lifespan Impact:</strong> Statistical reduction of <strong className="text-red-400">11 minutes</strong> per cigarette equivalent.</li>
+                  </ul>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
+                  <h3 className="text-lg font-bold mb-5 flex items-center gap-2 text-cyan-400">
+                    <Wind className="w-4 h-4" /> Technical Architecture
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Java Spring Boot 3', 'Next.js 14 / React', 'Rest Wikipedia API', 'Docker Hub'].map(tech => (
+                      <div key={tech} className="p-3 rounded-xl bg-white/5 border border-white/5 text-[11px] font-bold text-center">
+                        {tech}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Annotated Source Code */}
+              <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-3xl">
+                <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
+                  <span className="text-xs font-mono text-white/40">Full_System_Code_Annotated.java</span>
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
+                  </div>
+                </div>
+                <div className="p-8 overflow-y-auto max-h-[450px] custom-scrollbar">
+                  <pre className="text-[12px] font-mono whitespace-pre text-cyan-300/90 leading-relaxed">
+                    {JAVA_BACKEND_CODE}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* "Magic Behind" Tab Section - Moved to Top */}
+        <div className="mb-12">
+          <button
+            onClick={() => setShowMagic(!showMagic)}
+            className="mx-auto flex items-center gap-2 px-8 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold text-white/70 hover:text-white mb-8"
+          >
+            <Shield className="w-4 h-4 text-cyan-400" />
+            {showMagic ? 'Hide Technical Magic' : 'Explore the Magic Behind the System'}
+          </button>
+
+          {showMagic && (
+            <div className="animate-in fade-in zoom-in duration-500 space-y-12">
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    Mathematical Methodology
+                  </h3>
+                  <div className="space-y-4 text-white/60 text-sm leading-relaxed">
+                    <p>
+                      <strong className="text-white">1. AQI to PM2.5:</strong> We use the US EPA linear interpolation formula to convert index values back to raw Particulate Matter (µg/m³).
+                    </p>
+                    <p>
+                      <strong className="text-white">2. Berkeley Earth Formula:</strong> Total PM2.5 exposure is divided by <code className="bg-white/10 px-1.5 rounded text-emerald-400">22.0</code>.
+                      This factor equates the pollution to the damage of one cigarette.
+                    </p>
+                    <p>
+                      <strong className="text-white">3. Lifespan Impact:</strong> Medical research indicates 1 cigarette reduces average life expectancy by <strong className="text-red-400">11 minutes</strong>.
+                    </p>
+                    <p>
+                      <strong className="text-white">4. Temporal Scaling:</strong> Daily impact is scaled linearly across weeks, months, and years to provide a long-term perspective.
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <Wind className="w-5 h-5 text-cyan-400" />
+                    Technical Stack
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                      <p className="text-xs text-white/30 mb-1">Backend</p>
+                      <p className="text-sm font-bold">Java Spring Boot 3</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                      <p className="text-xs text-white/30 mb-1">Frontend</p>
+                      <p className="text-sm font-bold">Next.js 14 / React</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                      <p className="text-xs text-white/30 mb-1">APIs</p>
+                      <p className="text-sm font-bold">Open-Meteo / Wiki</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                      <p className="text-xs text-white/30 mb-1">Deployment</p>
+                      <p className="text-sm font-bold">Render (Docker)</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Java Code View */}
+              <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500/50" />
+                      <div className="w-3 h-3 rounded-full bg-amber-500/50" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
+                    </div>
+                    <span className="text-xs font-mono text-white/40 ml-4">FullSystemCode.java (Annotated)</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase tracking-tighter">System Transparency</span>
+                </div>
+                <div className="p-8 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <pre className="text-[13px] font-mono whitespace-pre text-cyan-300 leading-relaxed">
+                    {JAVA_BACKEND_CODE}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Mermaid Graph Simulation */}
+              <div className="text-center py-4">
+                <p className="text-[10px] text-white/20 uppercase tracking-widest mb-6 italic">Architecture Visualization</p>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="px-6 py-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5 font-mono text-xs">User Browser (Next.js)</div>
+                  <div className="w-px h-8 bg-gradient-to-b from-cyan-500/30 to-emerald-500/30" />
+                  <div className="px-6 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 font-mono text-xs font-bold">Java REST API (Spring Boot)</div>
+                  <div className="flex gap-8 mt-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-px h-8 bg-emerald-500/20" />
+                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Open-Meteo</div>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-px h-8 bg-emerald-500/20" />
+                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">BigDataCloud</div>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-px h-8 bg-emerald-500/20" />
+                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Wikipedia</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Calculator Card */}
         <div className="max-w-2xl mx-auto mb-16">
@@ -534,13 +740,12 @@ export default function Home() {
                   </div>
                   <h3 className="font-semibold text-white">Recommended Precautions</h3>
                 </div>
-                <p className="text-white/80 text-sm leading-relaxed font-medium">{result.level.cautionaryStatement}</p>
+                <p className="text-white/80 text-sm leading-relaxed font-medium">{result.level.precautions}</p>
               </div>
             </div>
 
-            {/* Annual & Population Impact Summary */}
             <div className="bg-gradient-to-br from-white/5 to-white/[0.01] backdrop-blur-sm rounded-3xl border border-white/10 p-10">
-              <div className="grid md:grid-cols-3 gap-12 text-center items-center">
+              <div className="grid md:grid-cols-2 gap-12 text-center items-center">
                 <div>
                   <p className="text-5xl font-bold text-white mb-2">
                     <AnimatedNumber value={result.cigarettes.perYear} decimals={0} />
@@ -555,119 +760,9 @@ export default function Home() {
                   <p className="text-white/40 text-sm font-medium tracking-wide uppercase">Days of Life Lost/Year</p>
                   <p className="text-[10px] text-red-400/50 mt-1">*Based on 11 min/cig formula</p>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
-                  <p className="text-4xl font-bold text-emerald-400 mb-2">
-                    <AnimatedNumber value={result.healthImpact.livesLostPerMillion} decimals={0} />
-                  </p>
-                  <p className="text-white/40 text-xs font-medium tracking-wide uppercase">Extra Deaths/Million Pop.</p>
-                  <p className="text-[10px] text-white/30 mt-1">Per year at current exposure</p>
-                </div>
               </div>
             </div>
 
-            {/* "Magic Behind" Tab Section */}
-            <div className="mt-20">
-              <button
-                onClick={() => setShowMagic(!showMagic)}
-                className="mx-auto flex items-center gap-2 px-8 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold text-white/70 hover:text-white mb-8"
-              >
-                <Shield className="w-4 h-4 text-cyan-400" />
-                {showMagic ? 'Hide Technical Magic' : 'Explore the Magic Behind the System'}
-              </button>
-
-              {showMagic && (
-                <div className="animate-in fade-in zoom-in duration-500 space-y-12">
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-emerald-400" />
-                        Mathematical Methodology
-                      </h3>
-                      <div className="space-y-4 text-white/60 text-sm leading-relaxed">
-                        <p>
-                          <strong className="text-white">1. AQI to PM2.5:</strong> We use the US EPA linear interpolation formula to convert index values back to raw Particulate Matter (µg/m³).
-                        </p>
-                        <p>
-                          <strong className="text-white">2. Berkeley Earth Formula:</strong> Total PM2.5 exposure is divided by <code className="bg-white/10 px-1.5 rounded text-emerald-400">22.0</code>.
-                          This factor equates the pollution to the damage of one cigarette.
-                        </p>
-                        <p>
-                          <strong className="text-white">3. Lifespan Impact:</strong> Medical research indicates 1 cigarette reduces average life expectancy by <strong className="text-red-400">11 minutes</strong>.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        <Wind className="w-5 h-5 text-cyan-400" />
-                        Technical Stack
-                      </h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                          <p className="text-xs text-white/30 mb-1">Backend</p>
-                          <p className="text-sm font-bold">Java Spring Boot 3</p>
-                        </div>
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                          <p className="text-xs text-white/30 mb-1">Frontend</p>
-                          <p className="text-sm font-bold">Next.js 14 / React</p>
-                        </div>
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                          <p className="text-xs text-white/30 mb-1">APIs</p>
-                          <p className="text-sm font-bold">Open-Meteo / Wiki</p>
-                        </div>
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                          <p className="text-xs text-white/30 mb-1">Deployment</p>
-                          <p className="text-sm font-bold">Render (Docker)</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Java Code View */}
-                  <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                          <div className="w-3 h-3 rounded-full bg-amber-500/50" />
-                          <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
-                        </div>
-                        <span className="text-xs font-mono text-white/40 ml-4">CoreBackendLogic.java</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase tracking-tighter">Production Ready</span>
-                    </div>
-                    <div className="p-6 overflow-x-auto">
-                      <pre className="text-xs font-mono text-cyan-300 leading-relaxed">
-                        {JAVA_BACKEND_CODE}
-                      </pre>
-                    </div>
-                  </div>
-
-                  {/* Mermaid Graph Simulation */}
-                  <div className="text-center py-4">
-                    <p className="text-[10px] text-white/20 uppercase tracking-widest mb-6 italic">Architecture Visualization</p>
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="px-6 py-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5 font-mono text-xs">User Browser (Next.js)</div>
-                      <div className="w-px h-8 bg-gradient-to-b from-cyan-500/30 to-emerald-500/30" />
-                      <div className="px-6 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 font-mono text-xs font-bold">Java REST API (Spring Boot)</div>
-                      <div className="flex gap-8 mt-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-px h-8 bg-emerald-500/20" />
-                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Open-Meteo</div>
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <div className="w-px h-8 bg-emerald-500/20" />
-                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">BigDataCloud</div>
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <div className="w-px h-8 bg-emerald-500/20" />
-                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Wikipedia</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Footer Methodology */}
             <div className="text-center py-8">
