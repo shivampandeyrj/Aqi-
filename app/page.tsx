@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Wind, Loader2, AlertTriangle, TrendingUp, Heart, Clock, Calendar, Flame, Shield, MapPin, CheckCircle } from 'lucide-react';
+import { Wind, Loader2, AlertTriangle, TrendingUp, Heart, Clock, Calendar, Flame, Shield, MapPin, CheckCircle, Code2, Box, Zap, Share2, FileJson, FolderTree, Folder, FileCode, Cpu, Activity, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -40,79 +40,186 @@ interface CalculationResult {
   };
 }
 
-// Full Java Backend Code for "Magic Behind the System"
-const JAVA_BACKEND_CODE = `
-/**
- * SECTION 1: CORE CALCULATION ENGINE (AqiCalculatorService.java)
- * Converts EPA AQI values into raw PM2.5 and maps them to Cigarette Equivalents.
- */
+// Structured Java Backend Codebase for the Hierarchical Explorer
+const JAVA_BACKEND_FILES = {
+  'AqiCalculatorApplication.java': {
+    name: 'AqiCalculatorApplication.java',
+    folder: 'root',
+    code: `package com.aqicalculator;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class AqiCalculatorApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(AqiCalculatorApplication.class, args);
+    }
+}`,
+    description: 'The main entry point of the Spring Boot application.'
+  },
+  'AqiController.java': {
+    name: 'AqiController.java',
+    folder: 'controller',
+    code: `package com.aqicalculator.controller;
+
+import com.aqicalculator.service.AqiCalculatorService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "*")
+public class AqiController {
+
+    @Autowired
+    private AqiCalculatorService calculatorService;
+
+    @PostMapping("/calculate")
+    public ResponseEntity<?> calculate(@RequestBody Map<String, Integer> request) {
+        Integer aqi = request.get("aqi");
+        if (aqi == null) return ResponseEntity.badRequest().body("AQI is required");
+        return ResponseEntity.ok(calculatorService.calculate(aqi));
+    }
+}`,
+    description: 'Handles basic AQI to cigarette calculations via POST requests.'
+  },
+  'LocationAqiController.java': {
+    name: 'LocationAqiController.java',
+    folder: 'controller',
+    code: `package com.aqicalculator.controller;
+
+import com.aqicalculator.service.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/aqi")
+@CrossOrigin(origins = "*")
+public class LocationAqiController {
+
+    @Autowired
+    private LocationAqiService locationService;
+    
+    @Autowired
+    private WikipediaService wikipediaService;
+    
+    @Autowired
+    private AqiCalculatorService aqiService;
+
+    @GetMapping("/location")
+    public ResponseEntity<?> getAqiByLocation(@RequestParam double lat, @RequestParam double lng) {
+        try {
+            var result = locationService.fetchAqi(lat, lng);
+            String cityName = (String) result.get("location");
+            
+            result.put("placeInfo", wikipediaService.fetchPlaceInfo(cityName));
+            result.put("details", aqiService.calculate((int)result.get("aqi")));
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
+    }
+}`,
+    description: 'Orchestrates the full data flow: Geolocation -> AQI -> Wikipedia -> Calculations.'
+  },
+  'AqiCalculatorService.java': {
+    name: 'AqiCalculatorService.java',
+    folder: 'service',
+    code: `package com.aqicalculator.service;
+
+import com.aqicalculator.model.*;
+import org.springframework.stereotype.Service;
+
 @Service
 public class AqiCalculatorService {
     private static final double PM25_PER_CIGARETTE = 22.0;
 
     public CalculationResponse calculate(int aqi) {
         double pm25 = convertAqiToPm25(aqi);
-        
-        // Berkeley Earth Formula: 22 µg/m³ PM2.5 = 1 cigarette/day
         double cigsPerDay = pm25 / PM25_PER_CIGARETTE;
+        double minsLost = cigsPerDay * 11.0;
         
-        // Impact Logic: 1 cigarette = 11 minutes life expectancy reduction
-        double minsLostDay = cigsPerDay * 11.0;
-        double daysLostYear = (minsLostDay * 365.0) / 1440.0;
-        
-        return new CalculationResponse(aqi, pm25, cigsPerDay, minsLostDay, daysLostYear);
+        CalculationResponse response = new CalculationResponse();
+        response.setAqi(aqi);
+        response.setPm25(pm25);
+        response.setCigarettes(new CigaretteEquivalent(cigsPerDay));
+        response.setHealthImpact(new HealthImpact(minsLost));
+        return response;
     }
-}
 
-/**
- * SECTION 2: LIVE LOCATION ENGINE (LocationAqiService.java)
- * Integrates Open-Meteo for real-time AQI and BigDataCloud for Geocoding.
- */
+    private double convertAqiToPm25(int aqi) {
+        // EPA Breakpoint Logic...
+        return aqi * 0.5; // Simplified for display
+    }
+}`,
+    description: 'The mathematical engine implementing Berkeley Earth research.'
+  },
+  'LocationAqiService.java': {
+    name: 'LocationAqiService.java',
+    folder: 'service',
+    code: `package com.aqicalculator.service;
+
 @Service
 public class LocationAqiService {
-    public Map<String, Object> fetchAqi(double lat, double lng) {
-        // 1. Call Open-Meteo Air Quality API
-        // 2. Perform Reverse Geocoding to get human-readable city names
-        String locationName = fetchLocationName(lat, lng);
-        return Map.of("aqi", usAqi, "location", locationName);
+    private static final String OPEN_METEO_URL = "https://air-quality-api.open-meteo.com/v1/air-quality...";
+    
+    public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
+        // 1. Fetch from Open-Meteo
+        // 2. Reverse Geocode via BigDataCloud
+        return Map.of("aqi", aqi, "pm25", pm25, "location", cityName);
     }
-}
+}`,
+    description: 'Integrates Open-Meteo and BigDataCloud for real-time data.'
+  },
+  'WikipediaService.java': {
+    name: 'WikipediaService.java',
+    folder: 'service',
+    code: `package com.aqicalculator.service;
 
-/**
- * SECTION 3: KNOWLEDGE ENRICHMENT (WikipediaService.java)
- * Fetches summaries and images to provide local context for the user.
- */
 @Service
 public class WikipediaService {
     public PlaceInfo fetchPlaceInfo(String city) {
-        // Query Wikipedia REST API for the first part of the city name
-        String searchTitle = city.split(",")[0].trim();
-        return wikiApi.fetch("/page/summary/" + searchTitle);
+        // REST Query to en.wikipedia.org/api/rest_v1/page/summary/
+        return new PlaceInfo(city, summary, thumbnail, wikiUrl);
     }
-}
+}`,
+    description: 'Enriches location data with Wikipedia context.'
+  },
+  'AqiLevel.java': {
+    name: 'AqiLevel.java',
+    folder: 'model',
+    code: `package com.aqicalculator.model;
 
-/**
- * SECTION 4: INTEGRATION CONTROLLER (LocationAqiController.java)
- * The REST API hub that orchestrates the entire data flow.
- */
-@RestController
-@RequestMapping("/api/aqi")
-public class LocationAqiController {
-    @GetMapping("/location")
-    public ResponseEntity<?> analyze(double lat, double lng) {
-        var baseRes = locationService.fetchAqi(lat, lng);
-        var details = aqiService.calculate((int)baseRes.get("aqi"));
-        var wiki = wikipediaService.fetchPlaceInfo((String)baseRes.get("location"));
-        
-        return ResponseEntity.ok(Map.of(
-            "aqi", baseRes.get("aqi"),
-            "location", baseRes.get("location"),
-            "placeInfo", wiki,
-            "details", details
-        ));
-    }
-}
-`;
+public class AqiLevel {
+    private String category;
+    private String color;
+    private String healthImplications;
+    private String precautions;
+}`,
+    description: 'Defines EPA health categories and advice.'
+  },
+  'CalculationResponse.java': {
+    name: 'CalculationResponse.java',
+    folder: 'model',
+    code: `package com.aqicalculator.model;
+
+public class CalculationResponse {
+    private int aqi;
+    private double pm25;
+    private CigaretteEquivalent cigarettes;
+    private AqiLevel level;
+    private HealthImpact healthImpact;
+    private PlaceInfo placeInfo;
+}`,
+    description: 'Unified API response model.'
+  }
+};
 
 // Animated Counter Component
 function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: number }) {
@@ -149,6 +256,7 @@ export default function Home() {
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showMagic, setShowMagic] = useState(false);
+  const [selectedFile, setSelectedFile] = useState('LocationAqiController.java');
 
   const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
@@ -282,166 +390,159 @@ export default function Home() {
           </p>
         </header>
 
-        {/* Technical Magic Section (Moved to Top) */}
-        <div className="max-w-4xl mx-auto mb-16">
+        {/* Unified Technical Transparency Section */}
+        <div className="max-w-5xl mx-auto mb-20 px-4">
           <button
             onClick={() => setShowMagic(!showMagic)}
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"
+            className="w-full relative group"
           >
-            <Shield className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-bold text-white/70 group-hover:text-white tracking-wide uppercase">
-              {showMagic ? 'Hide Full System Magic' : 'Explore the Magic Behind the System'}
-            </span>
+            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 rounded-2xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
+            <div className="relative flex items-center justify-center gap-4 py-6 rounded-2xl bg-[#0a0a0f] border border-white/10 hover:border-cyan-500/30 transition-all">
+              <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                <Code2 className={`w-5 h-5 text-cyan-400 ${showMagic ? 'rotate-180' : ''} transition-transform duration-500`} />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-white tracking-widest uppercase mb-1">
+                  {showMagic ? 'Close Technical Architecture' : 'Explore the Magic Behind the System'}
+                </p>
+                <p className="text-xs text-white/40">Full Hierarchical Backend Viewer & Data Orchestration Explanation</p>
+              </div>
+            </div>
           </button>
 
           {showMagic && (
-            <div className="mt-8 animate-in fade-in zoom-in duration-500 space-y-10">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                  <h3 className="text-lg font-bold mb-5 flex items-center gap-2 text-emerald-400">
-                    <TrendingUp className="w-4 h-4" /> Mathematical Methodology
-                  </h3>
-                  <ul className="space-y-4 text-sm text-white/50 leading-relaxed">
-                    <li><strong className="text-white">AQI to PM2.5:</strong> Reverse interpolation using US EPA standard breakpoints.</li>
-                    <li><strong className="text-white">Berkeley Earth Conversion:</strong> Every <code className="text-emerald-400 bg-white/5 px-1.5 rounded">22.0 µg/m³</code> = 1 cigarette reduction in health.</li>
-                    <li><strong className="text-white">Lifespan Impact:</strong> Statistical reduction of <strong className="text-red-400">11 minutes</strong> per cigarette equivalent.</li>
-                  </ul>
-                </div>
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                  <h3 className="text-lg font-bold mb-5 flex items-center gap-2 text-cyan-400">
-                    <Wind className="w-4 h-4" /> Technical Architecture
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Java Spring Boot 3', 'Next.js 14 / React', 'Rest Wikipedia API', 'Docker Hub'].map(tech => (
-                      <div key={tech} className="p-3 rounded-xl bg-white/5 border border-white/5 text-[11px] font-bold text-center">
-                        {tech}
+            <div className="mt-10 animate-in fade-in slide-in-from-top-4 duration-700 space-y-12">
+              {/* System Overview Tags */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Runtime', val: 'Java 17 JRE', icon: Box },
+                  { label: 'Framework', val: 'Spring Boot 3', icon: Zap },
+                  { label: 'Orchestration', val: 'REST API', icon: Share2 },
+                  { label: 'Methodology', val: 'Berkeley Earth', icon: FileJson },
+                ].map((item, i) => (
+                  <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col items-center">
+                    <item.icon className="w-4 h-4 text-emerald-400/60 mb-2" />
+                    <p className="text-[10px] text-white/20 uppercase font-bold mb-1">{item.label}</p>
+                    <p className="text-xs font-bold text-white/80">{item.val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Hierarchical Code Explorer */}
+              <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[700px] backdrop-blur-3xl">
+                {/* Sidebar Explorer */}
+                <div className="w-full md:w-72 border-r border-white/10 bg-white/[0.02] p-6 flex flex-col">
+                  <div className="flex items-center gap-3 mb-8 px-2">
+                    <FolderTree className="w-5 h-5 text-cyan-400" />
+                    <span className="text-xs font-bold text-white/40 tracking-widest uppercase">java-backend</span>
+                  </div>
+
+                  <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                    {/* Folders */}
+                    {['root', 'controller', 'service', 'model'].map(folder => (
+                      <div key={folder}>
+                        <div className="flex items-center gap-2 mb-2 px-2">
+                          <Folder className="w-3.5 h-3.5 text-amber-400/60" />
+                          <span className="text-[11px] font-bold text-white/30 uppercase tracking-tighter">{folder}</span>
+                        </div>
+                        <div className="space-y-1 ml-3">
+                          {Object.entries(JAVA_BACKEND_FILES)
+                            .filter(([_, file]) => file.folder === folder)
+                            .map(([key, file]) => (
+                              <button
+                                key={key}
+                                onClick={() => setSelectedFile(key)}
+                                className={`w-full text-left px-3 py-2 rounded-xl transition-all flex items-center gap-2 group ${selectedFile === key ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-white/40 hover:bg-white/5 hover:text-white/70'
+                                  }`}
+                              >
+                                <FileCode className={`w-3.5 h-3.5 ${selectedFile === key ? 'text-cyan-400' : 'text-white/20'}`} />
+                                <span className="text-[11px] font-mono truncate">{file.name}</span>
+                              </button>
+                            ))}
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
 
-              {/* Full Annotated Source Code */}
-              <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-3xl">
-                <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
-                  <span className="text-xs font-mono text-white/40">Full_System_Code_Annotated.java</span>
-                  <div className="flex gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
+                {/* Code Window */}
+                <div className="flex-1 flex flex-col bg-[#05050a]">
+                  <div className="h-14 border-b border-white/10 px-8 flex items-center justify-between bg-white/[0.01]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 mr-4">
+                        <div className="w-3 h-3 rounded-full bg-red-500/30" />
+                        <div className="w-3 h-3 rounded-full bg-amber-500/30" />
+                        <div className="w-3 h-3 rounded-full bg-emerald-500/30" />
+                      </div>
+                      <span className="text-xs font-mono text-cyan-400/80">{JAVA_BACKEND_FILES[selectedFile as keyof typeof JAVA_BACKEND_FILES].name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/20 text-[10px] font-bold uppercase tracking-widest">
+                      <Cpu className="w-3 h-3" /> Source Insight
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <p className="text-[11px] text-white/30 mb-6 font-medium italic border-l-2 border-cyan-500/30 pl-4">
+                      {JAVA_BACKEND_FILES[selectedFile as keyof typeof JAVA_BACKEND_FILES].description}
+                    </p>
+                    <pre className="text-[13px] font-mono whitespace-pre text-cyan-300/90 leading-relaxed selection:bg-cyan-500/30 selection:text-white">
+                      {JAVA_BACKEND_FILES[selectedFile as keyof typeof JAVA_BACKEND_FILES].code}
+                    </pre>
                   </div>
                 </div>
-                <div className="p-8 overflow-y-auto max-h-[450px] custom-scrollbar">
-                  <pre className="text-[12px] font-mono whitespace-pre text-cyan-300/90 leading-relaxed">
-                    {JAVA_BACKEND_CODE}
-                  </pre>
-                </div>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* "Magic Behind" Tab Section - Moved to Top */}
-        <div className="mb-12">
-          <button
-            onClick={() => setShowMagic(!showMagic)}
-            className="mx-auto flex items-center gap-2 px-8 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold text-white/70 hover:text-white mb-8"
-          >
-            <Shield className="w-4 h-4 text-cyan-400" />
-            {showMagic ? 'Hide Technical Magic' : 'Explore the Magic Behind the System'}
-          </button>
-
-          {showMagic && (
-            <div className="animate-in fade-in zoom-in duration-500 space-y-12">
+              {/* Data Flow explanation */}
               <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-emerald-400" />
-                    Mathematical Methodology
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10">
+                  <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                      <Activity className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    Request Lifecycle
                   </h3>
-                  <div className="space-y-4 text-white/60 text-sm leading-relaxed">
-                    <p>
-                      <strong className="text-white">1. AQI to PM2.5:</strong> We use the US EPA linear interpolation formula to convert index values back to raw Particulate Matter (µg/m³).
-                    </p>
-                    <p>
-                      <strong className="text-white">2. Berkeley Earth Formula:</strong> Total PM2.5 exposure is divided by <code className="bg-white/10 px-1.5 rounded text-emerald-400">22.0</code>.
-                      This factor equates the pollution to the damage of one cigarette.
-                    </p>
-                    <p>
-                      <strong className="text-white">3. Lifespan Impact:</strong> Medical research indicates 1 cigarette reduces average life expectancy by <strong className="text-red-400">11 minutes</strong>.
-                    </p>
-                    <p>
-                      <strong className="text-white">4. Temporal Scaling:</strong> Daily impact is scaled linearly across weeks, months, and years to provide a long-term perspective.
-                    </p>
+                  <div className="space-y-6">
+                    {[
+                      { step: '01', title: 'Coordinate Handshake', desc: 'Frontend sends Lat/Lng to LocationAqiController via secure REST call.' },
+                      { step: '02', title: 'Third-Party Pulse', desc: 'Spring Boot context executes parallel calls to Open-Meteo and BigDataCloud APIs.' },
+                      { step: '03', title: 'Knowledge Retrieval', desc: 'WikipediaService parses city results and retrieves localized encyclopedic summaries.' },
+                      { step: '04', title: 'Berkeley Core', desc: 'AqiCalculatorService applies the pollutant-to-cigarette mathematical models.' },
+                    ].map((step, i) => (
+                      <div key={i} className="flex gap-4 group">
+                        <span className="text-xs font-black text-white/10 group-hover:text-emerald-500/40 transition-colors pt-1">{step.step}</span>
+                        <div>
+                          <p className="text-sm font-bold text-white/80 mb-1">{step.title}</p>
+                          <p className="text-xs text-white/40 leading-relaxed">{step.desc}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                    <Wind className="w-5 h-5 text-cyan-400" />
-                    Technical Stack
+
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10">
+                  <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                      <Database className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    Data Orchestration
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                      <p className="text-xs text-white/30 mb-1">Backend</p>
-                      <p className="text-sm font-bold">Java Spring Boot 3</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                      <p className="text-xs text-white/30 mb-1">Frontend</p>
-                      <p className="text-sm font-bold">Next.js 14 / React</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                      <p className="text-xs text-white/30 mb-1">APIs</p>
-                      <p className="text-sm font-bold">Open-Meteo / Wiki</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
-                      <p className="text-xs text-white/30 mb-1">Deployment</p>
-                      <p className="text-sm font-bold">Render (Docker)</p>
+                  <div className="p-6 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4 py-4">
+                      <div className="px-5 py-2.5 rounded-xl border border-white/10 bg-white/5 text-[10px] font-mono text-white/40 tracking-wider">NEXT.JS CLIENT</div>
+                      <div className="w-px h-8 bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent" />
+                      <div className="px-6 py-4 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 text-xs font-bold text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]">SPRING BOOT SYSTEM</div>
+                      <div className="flex gap-6 mt-4">
+                        {['Open-Meteo', 'Wiki', 'BDC'].map(node => (
+                          <div key={node} className="flex flex-col items-center">
+                            <div className="w-px h-6 bg-white/10" />
+                            <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[9px] font-mono text-white/30">{node}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Java Code View */}
-              <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                      <div className="w-3 h-3 rounded-full bg-amber-500/50" />
-                      <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
-                    </div>
-                    <span className="text-xs font-mono text-white/40 ml-4">FullSystemCode.java (Annotated)</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase tracking-tighter">System Transparency</span>
-                </div>
-                <div className="p-8 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
-                  <pre className="text-[13px] font-mono whitespace-pre text-cyan-300 leading-relaxed">
-                    {JAVA_BACKEND_CODE}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Mermaid Graph Simulation */}
-              <div className="text-center py-4">
-                <p className="text-[10px] text-white/20 uppercase tracking-widest mb-6 italic">Architecture Visualization</p>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="px-6 py-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5 font-mono text-xs">User Browser (Next.js)</div>
-                  <div className="w-px h-8 bg-gradient-to-b from-cyan-500/30 to-emerald-500/30" />
-                  <div className="px-6 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 font-mono text-xs font-bold">Java REST API (Spring Boot)</div>
-                  <div className="flex gap-8 mt-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-px h-8 bg-emerald-500/20" />
-                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Open-Meteo</div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-px h-8 bg-emerald-500/20" />
-                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">BigDataCloud</div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-px h-8 bg-emerald-500/20" />
-                      <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Wikipedia</div>
-                    </div>
-                  </div>
+                  <p className="text-xs text-white/20 mt-8 text-center leading-relaxed">
+                    The backend strictly separates concerns: Controllers manage HTTP, Services manage business logic/External APIs, and Models define the contract.
+                  </p>
                 </div>
               </div>
             </div>
