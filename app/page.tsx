@@ -439,9 +439,9 @@ export default function Home() {
 
             {/* Health Info Cards */}
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-6">
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 shadow-xl hover:bg-white/[0.08] transition-all duration-300">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/20">
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
                   <h3 className="font-semibold text-white">Health Implications</h3>
@@ -449,14 +449,14 @@ export default function Home() {
                 <p className="text-white/60 text-sm leading-relaxed">{result.level.healthImplications}</p>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-6">
+              <div className="bg-emerald-500/5 backdrop-blur-sm rounded-2xl border border-emerald-500/20 p-6 shadow-xl hover:bg-emerald-500/10 transition-all duration-300">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
                     <Shield className="w-5 h-5 text-emerald-400" />
                   </div>
                   <h3 className="font-semibold text-white">Recommended Precautions</h3>
                 </div>
-                <p className="text-white/60 text-sm leading-relaxed">{result.level.cautionaryStatement}</p>
+                <p className="text-white/80 text-sm leading-relaxed font-medium">{result.level.cautionaryStatement}</p>
               </div>
             </div>
 
