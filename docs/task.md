@@ -26,16 +26,17 @@
 - [x] Verify live deployment on mobile and desktop
 
 ## UI & Data Visibility Refinement
+- [/] Stabilize technical explorer sidebar (fix `shrink-0` and `min-w-0`)
+- [ ] Replace legacy "Wikipedia" text in MAGIC section
 - [x] Fix broken animation and visibility in Cigarette Visualization (Impact section)
+
 - [x] Fix city info data flow (pass location name to result state)
 - [x] Fix AnimatedNumber SVG rendering issue (invisible counter)
 
 
 
-- [x] Fix technical explorer sidebar disappearance bug
+- [x] Fix Explorer Sidebar Regression (Sidebar disappearing on Java files)
 - [x] Implement robust fallbacks for Teleport city search
 - [x] Update UI text (Wikipedia -> Teleport)
+- [x] Architectural Consistency: Rename `wikipediaUrl` to `sourceUrl` across full stack
 - [x] Final end-to-end verification of all fixes
-
-
-

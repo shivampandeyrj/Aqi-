@@ -6,14 +6,15 @@ This plan addresses the missing cigarette counter, the disappearing sidebar in t
 
 ### Frontend (UI Fixes)
 
-#### [MODIFY] [page.tsx](file:///home/shivam/Downloads/meet-main/app/page.tsx)
-- **Cigarette Visualization Fix**:
-    - Correct the malformed `animation` string by removing invalid spaces in `ease-out`.
-    - Fix invalid keyframe percentages (e.g., `0 %` -> `0%`) in the `<style>` block.
-- **Location Data Flow**:
-    - Update `calculateCigarettes` to accept an optional `locationName` parameter.
-    - Pass the location name from `detectLocation` into `calculateCigarettes` to ensure the city card renders.
-- **SVG Compatibility**: Update `AnimatedNumber` component to return a React fragment `<>` instead of `<span>`.
+- **Cigarette Visualization Fix**: Correct the malformed `animation` string and keyframe percentages.
+- **Location Data Flow**: Ensure city name is passed to the result state.
+- **SVG Compatibility**: Use React fragment `<>` in `AnimatedNumber`.
+- **Explorer Sidebar Stabilization**:
+    - Add `md:shrink-0` to the sidebar to prevent it from being pushed out by long code lines.
+    - Add `min-w-0` to the code area to properly contain the `pre` tag and its overflow.
+    - Ensure `h-full` or consistent height for the container.
+- **Wikipedia Text Replacement**:
+    - Global search and replace of "Wikipedia" or "WikipediaService" with "Teleport" or "CityInfoService" in the "MAGIC" section description.
 
 ### Java Backend (Compilation Fixes)
 

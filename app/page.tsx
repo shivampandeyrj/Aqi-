@@ -36,7 +36,8 @@ interface CalculationResult {
     name: string;
     summary: string;
     imageUrl: string;
-    wikipediaUrl: string;
+    sourceUrl: string;
+
   };
 }
 
@@ -235,7 +236,8 @@ public class CityInfoService {
             String encodedCity = URLEncoder.encode(searchTitle, StandardCharsets.UTF_8);
             HttpClient client = HttpClient.newHttpClient();
       // 1. Search -> 2. City Details -> 3. Urban Area -> 4. Scores/Images
-      return new PlaceInfo(searchTitle, "A vibrant city mapped for health impact analysis.", "https://images.unsplash.com/photo-1449824913935-59a10b8d2000", "");
+      return new PlaceInfo(searchTitle, "A vibrant city mapped for health impact analysis.", "https://images.unsplash.com/photo-1449824913935-59a10b8d2000", uaUrl);
+
     } catch (Exception e) { return null; }
   }
 } `,
@@ -328,7 +330,8 @@ public class PlaceInfo {
   private String name;
   private String summary;
   private String imageUrl;
-  private String wikipediaUrl;
+  private String sourceUrl;
+
   // Getters/Setters...
 } `,
     description: 'City metadata and visuals.'
@@ -544,7 +547,8 @@ export default function Home() {
 
               <div className="bg-[#05050a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px] md:h-[750px] backdrop-blur-3xl">
                 {/* Sidebar Explorer */}
-                <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-white/10 bg-white/[0.02] p-6 flex flex-col overflow-hidden">
+                <div className="w-full md:w-80 md:shrink-0 border-b md:border-b-0 md:border-r border-white/10 bg-white/[0.02] p-6 flex flex-col overflow-hidden">
+
                   <div className="flex items-center gap-3 mb-6 md:mb-8 px-2">
                     <FolderTree className="w-5 h-5 text-cyan-400" />
                     <span className="text-[10px] md:text-xs font-bold text-white/40 tracking-widest uppercase">java-backend</span>
@@ -578,7 +582,8 @@ export default function Home() {
                 </div>
 
                 {/* Code Window */}
-                <div className="flex-1 flex flex-col bg-[#05050a]">
+                <div className="flex-1 min-w-0 flex flex-col bg-[#05050a]">
+
                   <div className="h-14 border-b border-white/10 px-8 flex items-center justify-between bg-white/[0.01]">
                     <div className="flex items-center gap-2">
                       <div className="flex gap-1.5 mr-4">
@@ -616,7 +621,8 @@ export default function Home() {
                     {[
                       { step: '01', title: 'Coordinate Handshake', desc: 'Frontend sends Lat/Lng to LocationAqiController via secure REST call.' },
                       { step: '02', title: 'Third-Party Pulse', desc: 'Spring Boot context executes parallel calls to Open-Meteo and BigDataCloud APIs.' },
-                      { step: '03', title: 'Knowledge Retrieval', desc: 'WikipediaService parses city results and retrieves localized encyclopedic summaries.' },
+                      { step: '03', title: 'Knowledge Retrieval', desc: 'CityInfoService parses city results and retrieves localized Teleport Urban Area insights.' },
+
                       { step: '04', title: 'Berkeley Core', desc: 'AqiCalculatorService applies the pollutant-to-cigarette mathematical models.' },
                     ].map((step, i) => (
                       <div key={i} className="flex gap-4 group">
@@ -786,9 +792,9 @@ export default function Home() {
                   <p className="text-white/60 text-sm leading-relaxed mb-6">
                     {result.placeInfo?.summary || "Direct air quality analysis for this location, enriched with real-time environmental data."}
                   </p>
-                  {result.placeInfo?.wikipediaUrl && (
+                  {result.placeInfo?.sourceUrl && (
                     <a
-                      href={result.placeInfo.wikipediaUrl}
+                      href={result.placeInfo.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 uppercase tracking-wider"
