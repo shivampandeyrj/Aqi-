@@ -15,9 +15,16 @@ This plan addresses the missing cigarette counter, the disappearing sidebar in t
     - Pass the location name from `detectLocation` into `calculateCigarettes` to ensure the city card renders.
 - **SVG Compatibility**: Update `AnimatedNumber` component to return a React fragment `<>` instead of `<span>`.
 
-### Java Backend (Data Consistency)
+### Java Backend (Compilation Fixes)
+
+#### [MODIFY] [LocationAqiController.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/controller/LocationAqiController.java)
+- Add missing import for `CalculationResponse`.
+
+#### [MODIFY] [LocationAqiService.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/service/LocationAqiService.java)
+- Add missing `logger` variable declaration.
 
 #### [MODIFY] [CalculationResponse.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/model/CalculationResponse.java)
+
 - Add a `location` field (String) to ensure the unified response can carry city names when enriched.
 
 

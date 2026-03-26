@@ -12,6 +12,10 @@
     - [x] Add `controller`, `service`, and `model` folders
     - [x] Include initial Java files
 - [x] Add detailed Java code logic and workflow explanation
+## Backend Build Resolution
+- [x] Resolve missing symbols in Java backend (CalculationResponse, logger)
+- [x] Push all fixes to GitHub
+
 - [x] Push initial refinements and verify deployment
 
 ## Final Corrective Phase
