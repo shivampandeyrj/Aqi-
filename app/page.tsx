@@ -138,25 +138,47 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AqiCalculatorService {
+
+    private static final double[][] AQI_BREAKPOINTS = {
+        {0, 12.0, 0, 50}, {12.1, 35.4, 51, 100}, {35.5, 55.4, 101, 150},
+        {55.5, 150.4, 151, 200}, {150.5, 250.4, 201, 300}, {250.5, 500.4, 301, 500}
+    };
+
     private static final double PM25_PER_CIGARETTE = 22.0;
 
     public CalculationResponse calculate(int aqi) {
         double pm25 = convertAqiToPm25(aqi);
-        double cigsPerDay = pm25 / PM25_PER_CIGARETTE;
-        double minsLost = cigsPerDay * 11.0;
+        double cigarettesPerDay = pm25 / PM25_PER_CIGARETTE;
         
         CalculationResponse response = new CalculationResponse();
         response.setAqi(aqi);
-        response.setPm25(pm25);
-        response.setCigarettes(new CigaretteEquivalent(cigsPerDay));
-        response.setHealthImpact(new HealthImpact(minsLost));
+        response.setPm25(Math.round(pm25 * 10.0) / 10.0);
+        response.setCigarettes(new CigaretteEquivalent(Math.round(cigarettesPerDay * 100.0) / 100.0));
+        response.setLevel(getAqiLevel(aqi));
+        response.setHealthImpact(calculateHealthImpact(cigarettesPerDay, aqi));
         return response;
     }
 
     private double convertAqiToPm25(int aqi) {
-        // EPA Breakpoint Logic...
-        return aqi * 0.5; // Simplified for display
+        for (double[] bp : AQI_BREAKPOINTS) {
+            if (aqi >= bp[2] && aqi <= bp[3]) {
+                return ((bp[1] - bp[0]) / (bp[3] - bp[2])) * (aqi - bp[2]) + bp[0];
+            }
+        }
+        return aqi * 0.5;
     }
+
+    private HealthImpact calculateHealthImpact(double cigarettesPerDay, int aqi) {
+        double minutesLostPerDay = cigarettesPerDay * 11;
+        return new HealthImpact(
+            Math.round((minutesLostPerDay * 365) / 6.0) / 10.0,
+            Math.round(minutesLostPerDay * 10.0) / 10.0,
+            Math.round(minutesLostPerDay * 365 / 144.0) / 10.0,
+            aqi > 100 ? "High" : "Moderate",
+            new String[]{"Respiratory impact", "Long-term risk"}
+        );
+    }
+    // ... categories logic
 }`,
     description: 'The mathematical engine implementing Berkeley Earth research.'
   },
@@ -165,14 +187,32 @@ public class AqiCalculatorService {
     folder: 'service',
     code: `package com.aqicalculator.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Service;
+import java.net.URI;
+import java.net.http.*;
+
 @Service
 public class LocationAqiService {
+    private static final String REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client...";
     private static final String OPEN_METEO_URL = "https://air-quality-api.open-meteo.com/v1/air-quality...";
-    
+
     public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
-        // 1. Fetch from Open-Meteo
-        // 2. Reverse Geocode via BigDataCloud
-        return Map.of("aqi", aqi, "pm25", pm25, "location", cityName);
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(String.format(OPEN_METEO_URL, lat, lng))).GET().build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        
+        JsonNode root = new ObjectMapper().readTree(response.body());
+        int aqi = root.path("current").path("us_aqi").asInt();
+        double pm25 = root.path("current").path("pm2_5").asDouble();
+        
+        return Map.of("aqi", aqi, "pm25", pm25, "location", fetchLocationName(lat, lng));
+    }
+
+    private String fetchLocationName(double lat, double lng) {
+        // BigDataCloud Reverse Geocoding Integration...
+        return "Localized Place Name";
     }
 }`,
     description: 'Integrates Open-Meteo and BigDataCloud for real-time data.'
@@ -182,11 +222,27 @@ public class LocationAqiService {
     folder: 'service',
     code: `package com.aqicalculator.service;
 
+import com.aqicalculator.model.PlaceInfo;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Service;
+import java.net.URI;
+import java.net.http.*;
+
 @Service
 public class WikipediaService {
-    public PlaceInfo fetchPlaceInfo(String city) {
-        // REST Query to en.wikipedia.org/api/rest_v1/page/summary/
-        return new PlaceInfo(city, summary, thumbnail, wikiUrl);
+    private static final String WIKI_API_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+
+    public PlaceInfo fetchPlaceInfo(String cityName) {
+        try {
+            String searchTitle = cityName.split(",")[0].trim();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(WIKI_API_URL + searchTitle)).GET().build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            JsonNode root = new ObjectMapper().readTree(response.body());
+            return new PlaceInfo(searchTitle, root.path("extract").asText(), root.path("thumbnail").path("source").asText(), "");
+        } catch (Exception e) { return null; }
     }
 }`,
     description: 'Enriches location data with Wikipedia context.'
