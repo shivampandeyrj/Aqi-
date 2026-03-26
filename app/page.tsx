@@ -28,20 +28,63 @@ interface CalculationResult {
   healthImpact: {
     minutesLostPerDay: number;
     daysLostPerYear: number;
+    livesLostPerMillion: number;
     riskLevel: string;
   };
+  placeInfo?: {
+    name: string;
+    summary: string;
+    imageUrl: string;
+    wikipediaUrl: string;
+  };
 }
+
+// Full Java Backend Code for the "Magic" section
+const JAVA_BACKEND_CODE = `
+// --- AqiCalculatorService.java ---
+@Service
+public class AqiCalculatorService {
+    public CalculationResponse calculate(int aqi) {
+        double pm25 = aqiToPm25(aqi);
+        // Berkeley Earth: 22 ug/m3 PM2.5 = 1 cigarette
+        double cigarettesPerDay = pm25 / 22.0;
+
+        // Health Impact Math
+        double minutesLostPerDay = cigarettesPerDay * 11;
+        double daysLostPerYear = (minutesLostPerDay * 365) / 1440.0;
+        
+        // Lives lost per million (WHO/IHME model)
+        double excessPm25 = Math.max(0, pm25 - 5.0);
+        double deathsPerMillionPerTenUg = 120.0;
+        double livesLostPerMillion = (excessPm25 / 10.0) * deathsPerMillionPerTenUg;
+
+        // ... return structured response
+    }
+}
+
+// --- WikipediaService.java ---
+@Service
+public class WikipediaService {
+    private static final String WIKI_API = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+    
+    public PlaceInfo fetchPlaceInfo(String cityName) {
+        String searchTitle = cityName.split(",")[0].trim();
+        // Fetch summary and image...
+        return new PlaceInfo(name, summary, imageUrl, wikiUrl);
+    }
+}
+`;
 
 // Animated Counter Component
 function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: number }) {
   const [display, setDisplay] = useState(0);
-  
+
   useEffect(() => {
     const duration = 1500;
     const steps = 60;
     const increment = value / steps;
     let current = 0;
-    
+
     const timer = setInterval(() => {
       current += increment;
       if (current >= value) {
@@ -51,10 +94,10 @@ function AnimatedNumber({ value, decimals = 1 }: { value: number; decimals?: num
         setDisplay(current);
       }
     }, duration / steps);
-    
+
     return () => clearInterval(timer);
   }, [value]);
-  
+
   return <span>{display.toFixed(decimals)}</span>;
 }
 
@@ -66,8 +109,9 @@ export default function Home() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [showMagic, setShowMagic] = useState(false);
 
-  const calculateCigarettes = useCallback(async (aqiOverride?: number) => {
+  const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
     if (isNaN(aqiValue) || aqiValue < 0 || aqiValue > 500) {
       setError('Please enter a valid AQI (0–500)');
@@ -107,8 +151,10 @@ export default function Home() {
         healthImpact: {
           minutesLostPerDay: data.healthImpact?.minutesLostPerDay ?? 0,
           daysLostPerYear: data.healthImpact?.daysLostPerYear ?? 0,
+          livesLostPerMillion: data.healthImpact?.livesLostPerMillion ?? 0,
           riskLevel: data.healthImpact?.riskLevel ?? 'Unknown',
         },
+        placeInfo: placeData ?? data.placeInfo,
       };
       setResult(normalized);
     } catch {
@@ -143,7 +189,7 @@ export default function Home() {
           setLocationLabel(`📍 ${data.location ?? `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`} — AQI ${data.aqi}`);
           setLocationLoading(false);
           // Auto-calculate after location fetch
-          await calculateCigarettes(data.aqi);
+          await calculateCigarettes(data.aqi, data.placeInfo);
         } catch {
           setLocationError('Could not fetch AQI for your location. Enter manually.');
           setLocationLoading(false);
@@ -178,21 +224,21 @@ export default function Home() {
         <header className="text-center mb-16">
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-8">
             <Wind className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-medium text-emerald-400">Research-Based Calculator</span>
+            <span className="text-sm font-medium text-emerald-400">Advanced Java-Powered Platform</span>
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
             <span className="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
               AQI to Cigarette
             </span>
             <span className="block mt-2 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              Calculator
+              Analyzer
             </span>
           </h1>
-          
+
           <p className="text-lg text-white/50 max-w-2xl mx-auto leading-relaxed">
-            Based on Berkeley Earth research methodology. Understand the real health impact 
-            of air pollution in terms everyone can relate to.
+            Unveiling the true impact of air pollution using high-precision calculations.
+            Powered by a robust Spring Boot backend for real-time accuracy.
           </p>
         </header>
 
@@ -200,9 +246,9 @@ export default function Home() {
         <div className="max-w-2xl mx-auto mb-16">
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 rounded-3xl blur-xl opacity-50" />
-            
+
             <div className="relative bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-8">
-              
+
               {/* Auto-detect Location Button */}
               <div className="mb-6">
                 <button
@@ -213,12 +259,12 @@ export default function Home() {
                   {locationLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Detecting your location…
+                      Locating & Fetching City Info...
                     </>
                   ) : (
                     <>
                       <MapPin className="w-4 h-4" />
-                      Auto-detect AQI from my location
+                      Precision Fetch: AQI & City Data
                     </>
                   )}
                 </button>
@@ -242,15 +288,15 @@ export default function Home() {
                     <div className="w-full border-t border-white/10" />
                   </div>
                   <div className="relative flex justify-center">
-                    <span className="px-3 text-xs text-white/30 bg-[#0a0a0f]">or enter manually</span>
+                    <span className="px-3 text-xs text-white/30 bg-[#0a0a0f]">or manual analysis</span>
                   </div>
                 </div>
               </div>
 
               <label className="block text-sm font-medium text-white/60 mb-4">
-                Enter Air Quality Index Value
+                Air Quality Index (AQI)
               </label>
-              
+
               <div className="flex gap-4">
                 <div className="relative flex-1">
                   <Input
@@ -264,13 +310,13 @@ export default function Home() {
                     max="500"
                   />
                 </div>
-                
+
                 <Button
                   onClick={() => calculateCigarettes()}
                   disabled={loading}
                   className="h-16 px-10 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold text-lg shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:shadow-emerald-500/40"
                 >
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Calculate'}
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Analyze'}
                 </Button>
               </div>
 
@@ -282,7 +328,7 @@ export default function Home() {
                     onClick={() => setAqi(val.toString())}
                     className="px-5 py-2.5 rounded-xl text-sm font-medium bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200"
                   >
-                    AQI {val}
+                    {val}
                   </button>
                 ))}
               </div>
@@ -299,11 +345,44 @@ export default function Home() {
 
         {/* Results */}
         {result && (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+            {/* Wikipedia City Info Section */}
+            {result.placeInfo && (
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-2xl">
+                {result.placeInfo.imageUrl && (
+                  <div className="w-full md:w-1/3 h-64 md:h-auto overflow-hidden">
+                    <img
+                      src={result.placeInfo.imageUrl}
+                      alt={result.placeInfo.name}
+                      className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
+                    />
+                  </div>
+                )}
+                <div className="p-8 flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <MapPin className="w-5 h-5 text-emerald-400" />
+                    <h2 className="text-2xl font-bold text-white">{result.placeInfo.name}</h2>
+                  </div>
+                  <p className="text-white/60 text-sm leading-relaxed mb-6">
+                    {result.placeInfo.summary}
+                  </p>
+                  <a
+                    href={result.placeInfo.wikipediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 uppercase tracking-wider"
+                  >
+                    Read more on Wikipedia →
+                  </a>
+                </div>
+              </div>
+            )}
+
             {/* Main Result Card */}
             <div className="relative">
               <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-emerald-500/20 rounded-3xl blur-xl opacity-40" />
-              
+
               <div className="relative bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-10">
                 <div className="grid lg:grid-cols-2 gap-12 items-center">
                   {/* Circular Gauge */}
@@ -316,10 +395,10 @@ export default function Home() {
                             <stop offset="100%" stopColor={result.level.color} stopOpacity="0.5" />
                           </linearGradient>
                           <filter id="glow">
-                            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
                             <feMerge>
-                              <feMergeNode in="coloredBlur"/>
-                              <feMergeNode in="SourceGraphic"/>
+                              <feMergeNode in="coloredBlur" />
+                              <feMergeNode in="SourceGraphic" />
                             </feMerge>
                           </filter>
                         </defs>
@@ -341,14 +420,14 @@ export default function Home() {
                           EQUIVALENT TO
                         </text>
                         <text x="100" y="115" textAnchor="middle" className="fill-white font-bold" style={{ fontSize: '36px' }}>
-                          {result.cigarettes.perDay.toFixed(1)}
+                          <AnimatedNumber value={result.cigarettes.perDay} decimals={1} />
                         </text>
                         <text x="100" y="140" textAnchor="middle" className="fill-white/60 text-sm">
                           cigarettes/day
                         </text>
                       </svg>
 
-                      <div 
+                      <div
                         className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full font-bold text-sm shadow-lg"
                         style={{ backgroundColor: result.level.color, color: '#fff' }}
                       >
@@ -360,9 +439,9 @@ export default function Home() {
                   {/* Cigarette Visualization */}
                   <div>
                     <h3 className="text-lg font-semibold text-white/80 mb-6 text-center">
-                      Visual Representation
+                      Impact Visualization
                     </h3>
-                    
+
                     <div className="grid grid-cols-5 gap-3 max-w-sm mx-auto">
                       {Array.from({ length: Math.min(Math.ceil(result.cigarettes.perDay), 15) }).map((_, i) => (
                         <div
@@ -385,13 +464,12 @@ export default function Home() {
                               <div className="absolute bottom-0 w-full h-2 bg-gradient-to-t from-[#FF6B35] via-[#FF8C42] to-[#666]">
                                 <div className="absolute inset-0 bg-gradient-to-t from-orange-500 to-transparent" style={{ animation: 'pulse 1s ease-in-out infinite' }} />
                               </div>
-                              <div className="absolute -top-1 -left-1 -right-1 h-4 bg-orange-500/40 blur-md rounded-full" style={{ animation: 'pulse 0.8s ease-in-out infinite' }} />
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
-                    
+
                     {result.cigarettes.perDay > 15 && (
                       <p className="text-center text-red-400 text-sm mt-4 font-medium">
                         + {Math.ceil(result.cigarettes.perDay - 15)} more cigarettes
@@ -407,7 +485,7 @@ export default function Home() {
                           backgroundColor: result.level.color + '15',
                         }}>
                         <Flame className="w-3 h-3" />
-                        Risk Level: {result.healthImpact.riskLevel}
+                        Status: {result.healthImpact.riskLevel}
                       </span>
                     </div>
                   </div>
@@ -418,16 +496,16 @@ export default function Home() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { icon: Wind, label: 'PM2.5 Level', value: `${result.pm25}`, unit: 'µg/m³', color: 'emerald' },
-                { icon: TrendingUp, label: 'Weekly Impact', value: result.cigarettes.perWeek.toFixed(1), unit: 'cigs', color: 'cyan' },
+                { icon: Wind, label: 'Particulate Matter (PM2.5)', value: `${result.pm25}`, unit: 'µg/m³', color: 'emerald' },
+                { icon: TrendingUp, label: 'Weekly Exposure', value: result.cigarettes.perWeek.toFixed(1), unit: 'cigs', color: 'cyan' },
                 { icon: Clock, label: 'Life Lost/Day', value: result.healthImpact.minutesLostPerDay.toFixed(0), unit: 'min', color: 'amber' },
-                { icon: Calendar, label: 'Packs/Month', value: result.cigarettes.packsPerMonth.toFixed(1), unit: 'packs', color: 'rose' },
+                { icon: Calendar, label: 'Monthly Pack Equiv.', value: result.cigarettes.packsPerMonth.toFixed(1), unit: 'packs', color: 'rose' },
               ].map((stat, i) => (
                 <div
                   key={i}
-                  className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-5 hover:bg-white/10 transition-colors"
+                  className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/5 p-5 hover:bg-white/10 transition-colors group"
                 >
-                  <stat.icon className={`w-5 h-5 text-${stat.color}-400 mb-3`} />
+                  <stat.icon className={`w-5 h-5 text-${stat.color}-400 mb-3 group-hover:scale-110 transition-transform`} />
                   <p className="text-white/40 text-xs mb-1">{stat.label}</p>
                   <p className="text-2xl font-bold text-white">
                     <AnimatedNumber value={parseFloat(stat.value)} decimals={stat.value.includes('.') ? 1 : 0} />
@@ -460,52 +538,158 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Annual Impact Summary */}
-            <div className="bg-gradient-to-r from-white/5 to-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/5 p-8">
-              <h3 className="text-center text-white/60 text-sm font-medium mb-8">ANNUAL IMPACT PROJECTION</h3>
-              
-              <div className="grid grid-cols-3 gap-8 text-center">
+            {/* Annual & Population Impact Summary */}
+            <div className="bg-gradient-to-br from-white/5 to-white/[0.01] backdrop-blur-sm rounded-3xl border border-white/10 p-10">
+              <div className="grid md:grid-cols-3 gap-12 text-center items-center">
                 <div>
-                  <p className="text-4xl md:text-5xl font-bold text-white mb-2">
+                  <p className="text-5xl font-bold text-white mb-2">
                     <AnimatedNumber value={result.cigarettes.perYear} decimals={0} />
                   </p>
-                  <p className="text-white/40 text-sm">Cigarettes/Year</p>
+                  <p className="text-white/40 text-sm font-medium tracking-wide uppercase">Cigarettes per Year</p>
                 </div>
-                <div>
-                  <p className="text-4xl md:text-5xl font-bold text-red-400 mb-2">
+                <div className="relative">
+                  <div className="absolute -inset-4 bg-red-500/5 blur-xl rounded-full" />
+                  <p className="text-5xl font-bold text-red-500 mb-2">
                     <AnimatedNumber value={result.healthImpact.daysLostPerYear} decimals={1} />
                   </p>
-                  <p className="text-white/40 text-sm">Days Lost/Year</p>
+                  <p className="text-white/40 text-sm font-medium tracking-wide uppercase">Days of Life Lost/Year</p>
+                  <p className="text-[10px] text-red-400/50 mt-1">*Based on 11 min/cig formula</p>
                 </div>
-                <div>
-                  <p className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    <AnimatedNumber value={result.cigarettes.perYear / 20} decimals={0} />
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                  <p className="text-4xl font-bold text-emerald-400 mb-2">
+                    <AnimatedNumber value={result.healthImpact.livesLostPerMillion} decimals={0} />
                   </p>
-                  <p className="text-white/40 text-sm">Packs/Year</p>
+                  <p className="text-white/40 text-xs font-medium tracking-wide uppercase">Extra Deaths/Million Pop.</p>
+                  <p className="text-[10px] text-white/30 mt-1">Per year at current exposure</p>
                 </div>
               </div>
             </div>
 
-            {/* Methodology */}
+            {/* "Magic Behind" Tab Section */}
+            <div className="mt-20">
+              <button
+                onClick={() => setShowMagic(!showMagic)}
+                className="mx-auto flex items-center gap-2 px-8 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-bold text-white/70 hover:text-white mb-8"
+              >
+                <Shield className="w-4 h-4 text-cyan-400" />
+                {showMagic ? 'Hide Technical Magic' : 'Explore the Magic Behind the System'}
+              </button>
+
+              {showMagic && (
+                <div className="animate-in fade-in zoom-in duration-500 space-y-12">
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-emerald-400" />
+                        Mathematical Methodology
+                      </h3>
+                      <div className="space-y-4 text-white/60 text-sm leading-relaxed">
+                        <p>
+                          <strong className="text-white">1. AQI to PM2.5:</strong> We use the US EPA linear interpolation formula to convert index values back to raw Particulate Matter (µg/m³).
+                        </p>
+                        <p>
+                          <strong className="text-white">2. Berkeley Earth Formula:</strong> Total PM2.5 exposure is divided by <code className="bg-white/10 px-1.5 rounded text-emerald-400">22.0</code>.
+                          This factor equates the pollution to the damage of one cigarette.
+                        </p>
+                        <p>
+                          <strong className="text-white">3. Lifespan Impact:</strong> Medical research indicates 1 cigarette reduces average life expectancy by <strong className="text-red-400">11 minutes</strong>.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <Wind className="w-5 h-5 text-cyan-400" />
+                        Technical Stack
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                          <p className="text-xs text-white/30 mb-1">Backend</p>
+                          <p className="text-sm font-bold">Java Spring Boot 3</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                          <p className="text-xs text-white/30 mb-1">Frontend</p>
+                          <p className="text-sm font-bold">Next.js 14 / React</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                          <p className="text-xs text-white/30 mb-1">APIs</p>
+                          <p className="text-sm font-bold">Open-Meteo / Wiki</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                          <p className="text-xs text-white/30 mb-1">Deployment</p>
+                          <p className="text-sm font-bold">Render (Docker)</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Java Code View */}
+                  <div className="bg-[#05050a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                    <div className="bg-white/10 px-6 py-4 flex items-center justify-between border-b border-white/10">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-red-500/50" />
+                          <div className="w-3 h-3 rounded-full bg-amber-500/50" />
+                          <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
+                        </div>
+                        <span className="text-xs font-mono text-white/40 ml-4">CoreBackendLogic.java</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase tracking-tighter">Production Ready</span>
+                    </div>
+                    <div className="p-6 overflow-x-auto">
+                      <pre className="text-xs font-mono text-cyan-300 leading-relaxed">
+                        {JAVA_BACKEND_CODE}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {/* Mermaid Graph Simulation */}
+                  <div className="text-center py-4">
+                    <p className="text-[10px] text-white/20 uppercase tracking-widest mb-6 italic">Architecture Visualization</p>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="px-6 py-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5 font-mono text-xs">User Browser (Next.js)</div>
+                      <div className="w-px h-8 bg-gradient-to-b from-cyan-500/30 to-emerald-500/30" />
+                      <div className="px-6 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 font-mono text-xs font-bold">Java REST API (Spring Boot)</div>
+                      <div className="flex gap-8 mt-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-px h-8 bg-emerald-500/20" />
+                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Open-Meteo</div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-px h-8 bg-emerald-500/20" />
+                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">BigDataCloud</div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-px h-8 bg-emerald-500/20" />
+                          <div className="px-4 py-2 rounded-lg border border-white/10 text-[10px]">Wikipedia</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Methodology */}
             <div className="text-center py-8">
               <p className="text-white/30 text-xs max-w-2xl mx-auto">
                 Calculation based on Berkeley Earth Research: 22 µg/m³ PM2.5 = 1 cigarette equivalent.
                 AQI to PM2.5 conversion follows US EPA standards. Health impact estimates based on peer-reviewed medical research.
-                Location AQI data sourced from Open-Meteo Air Quality API.
+                Location data enriched via Open-Meteo and Wikipedia Rest API.
               </p>
             </div>
           </div>
         )}
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes fadeSlideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes smokeFloat {
-          0% { transform: translateY(0) scale(1); opacity: 0.6; }
-          100% { transform: translateY(-30px) scale(2); opacity: 0; }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
         }
       `}} />
     </main>

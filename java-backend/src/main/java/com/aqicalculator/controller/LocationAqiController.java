@@ -13,10 +13,16 @@ import java.util.Map;
 public class LocationAqiController {
 
     private final LocationAqiService locationAqiService;
+    private final WikipediaService wikipediaService;
+    private final AqiCalculatorService aqiCalculatorService;
 
     @Autowired
-    public LocationAqiController(LocationAqiService locationAqiService) {
+    public LocationAqiController(LocationAqiService locationAqiService, 
+                                 WikipediaService wikipediaService,
+                                 AqiCalculatorService aqiCalculatorService) {
         this.locationAqiService = locationAqiService;
+        this.wikipediaService = wikipediaService;
+        this.aqiCalculatorService = aqiCalculatorService;
     }
 
     /**
@@ -35,6 +41,15 @@ public class LocationAqiController {
             }
 
             Map<String, Object> result = locationAqiService.fetchAqi(lat, lng);
+            
+            // Enrich with Wikipedia data
+            String cityName = (String) result.get("location");
+            result.put("placeInfo", wikipediaService.fetchPlaceInfo(cityName));
+            
+            // Enrich with full Calculation Response data
+            int aqi = (int) result.get("aqi");
+            result.put("details", aqiCalculatorService.calculate(aqi));
+            
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {

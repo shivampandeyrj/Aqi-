@@ -4,6 +4,7 @@ public class HealthImpact {
     private double lifeExpectancyLossHours;
     private double minutesLostPerDay;
     private double daysLostPerYear;
+    private double livesLostPerMillion;
     private String riskLevel;
     private String[] healthRisks;
 
@@ -27,6 +28,9 @@ public class HealthImpact {
     
     public double getDaysLostPerYear() { return daysLostPerYear; }
     public void setDaysLostPerYear(double days) { this.daysLostPerYear = days; }
+    
+    public double getLivesLostPerMillion() { return livesLostPerMillion; }
+    public void setLivesLostPerMillion(double count) { this.livesLostPerMillion = count; }
     
     public String getRiskLevel() { return riskLevel; }
     public void setRiskLevel(String riskLevel) { this.riskLevel = riskLevel; }

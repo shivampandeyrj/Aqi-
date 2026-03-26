@@ -6,6 +6,7 @@ public class CalculationResponse {
     private CigaretteEquivalent cigarettes;
     private AqiLevel level;
     private HealthImpact healthImpact;
+    private PlaceInfo placeInfo;
     private String calculationMethod;
     private String dataSource;
 
@@ -26,6 +27,9 @@ public class CalculationResponse {
     
     public HealthImpact getHealthImpact() { return healthImpact; }
     public void setHealthImpact(HealthImpact healthImpact) { this.healthImpact = healthImpact; }
+    
+    public PlaceInfo getPlaceInfo() { return placeInfo; }
+    public void setPlaceInfo(PlaceInfo placeInfo) { this.placeInfo = placeInfo; }
     
     public String getCalculationMethod() { return calculationMethod; }
     public void setCalculationMethod(String method) { this.calculationMethod = method; }
