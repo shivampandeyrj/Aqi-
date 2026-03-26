@@ -863,9 +863,14 @@ export default function Home() {
                 )}
               </div>
 
-              <label className="block text-sm font-medium text-white/60 mb-4">
-                Air Quality Index (AQI)
-              </label>
+              <div className="flex justify-between items-center mb-4">
+                <label className="text-sm font-medium text-white/60">
+                  Air Quality Index (AQI)
+                </label>
+                <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-bold text-white/40 uppercase tracking-wider">
+                  Station Reported
+                </div>
+              </div>
 
               <div className="flex gap-4">
                 <div className="relative flex-1">
@@ -1010,6 +1015,11 @@ export default function Home() {
                         <text x="100" y="140" textAnchor="middle" className="fill-white/60 text-sm">
                           cigarettes/day
                         </text>
+                        {result.details?.aqi && result.details.aqi !== result.aqi && (
+                          <text x="100" y="165" textAnchor="middle" className="fill-emerald-400/40 text-[8px] font-bold uppercase tracking-widest">
+                            Strict 2024 EPA: {result.details.aqi}
+                          </text>
+                        )}
                       </svg>
 
                       <div

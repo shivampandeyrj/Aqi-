@@ -50,13 +50,12 @@ public class LocationAqiController {
             String cityName = (String) result.get("location");
             result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
             
-            // Enrich with full Calculation Response data (Using 2024 EPA standards from raw PM2.5)
+            // Enrich with full Calculation Response data (Using 2024 EPA standards from raw PM2.5 for health analysis)
             double pm25 = (double) result.get("pm25");
             CalculationResponse details = aqiCalculatorService.calculateFromPm25(pm25);
             
-            // Sync the main result AQI with our calculated one
-            result.put("aqi", details.getAqi());
-            
+            // Keep the 'aqi' as reported by WAQI (to match their website)
+            // But provide our strict 2024 EPA calculation in the details for comparison
             details.setLocation(cityName);
             result.put("details", details);
             
