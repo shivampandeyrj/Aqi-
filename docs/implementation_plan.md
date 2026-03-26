@@ -1,41 +1,30 @@
-# Implementation Plan: UI Regressions & Data Visibility Fix
+# Implementation Plan - Backend Fix & Search Suggestions
 
-This plan addresses the missing cigarette counter, the disappearing sidebar in the technical explorer, and missing city information.
+Addressing the compilation errors in the Java backend and adding a new autocomplete feature for location search to improve usability.
 
 ## Proposed Changes
 
-### Frontend (UI Fixes)
-
-- **Cigarette Visualization Fix**: Correct the malformed `animation` string and keyframe percentages.
-- **Location Data Flow**: Ensure city name is passed to the result state.
-- **SVG Compatibility**: Use React fragment `<>` in `AnimatedNumber`.
-- **Explorer Sidebar Stabilization**:
-    - Add `md:shrink-0` to the sidebar to prevent it from being pushed out by long code lines.
-    - Add `min-w-0` to the code area to properly contain the `pre` tag and its overflow.
-    - Ensure `h-full` or consistent height for the container.
-- **Wikipedia Text Replacement**:
-    - Global search and replace of "Wikipedia" or "WikipediaService" with "Teleport" or "CityInfoService" in the "MAGIC" section description.
-
-### Java Backend (Compilation Fixes)
+### Java Backend
 
 #### [MODIFY] [LocationAqiController.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/controller/LocationAqiController.java)
-- Add missing import for `CalculationResponse`.
+- **Fix Syntax**: Add missing closing brace for `getAqiByLocation` method.
+- **New Endpoint**: Add `GET /api/aqi/suggestions?query={q}` to provide city name suggestions.
 
 #### [MODIFY] [LocationAqiService.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/service/LocationAqiService.java)
-- Add missing `logger` variable declaration.
+- **New Method**: `getSuggestions(query)` to fetch city suggestions from an external API (Teleport or WAQI).
 
-#### [MODIFY] [CalculationResponse.java](file:///home/shivam/Downloads/meet-main/java-backend/src/main/java/com/aqicalculator/model/CalculationResponse.java)
+### Frontend (Next.js)
 
-- Add a `location` field (String) to ensure the unified response can carry city names when enriched.
-
+#### [MODIFY] [app/page.tsx](file:///home/shivam/Downloads/meet-main/app/page.tsx)
+- **Autocomplete UI**: Add a dropdown list of suggestions as the user types in the search bar.
+- **Debounced Search**: Implement debouncing for the suggestion API calls to prevent overwhelming the server.
 
 ## Verification Plan
 
-### Automated Verification
-- `curl` backend to verify the city info endpoint with known and unknown cities.
-- Check that `placeInfo` is never `null`.
+### Automated Tests
+- Run `mvn clean compile` to ensure the project builds successfully.
 
 ### Manual Verification
-- Verify the large cigarette counter is visible in the gauge.
-- Click every file in the explorer to ensure the sidebar remains visible.
-- Verify the city name appears even for small localities without Teleport urban areas.
+- Type in the search bar and verify that city suggestions appear.
+- Select a suggestion and verify that it triggers the AQI fetch for that location.
+- Verify that the "Precision Fetch" still works correctly.
