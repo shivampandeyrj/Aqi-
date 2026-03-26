@@ -1,0 +1,27 @@
+services:
+  # 1. Java Backend Service
+  - type: web
+    name: aqi-calculator-backend
+    env: java
+    plan: free
+    rootDir: java-backend
+    buildCommand: mvn clean package -DskipTests
+    startCommand: java -jar target/aqi-cigarette-calculator-1.0.0.jar
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8080
+
+  # 2. Next.js Frontend Service
+  - type: web
+    name: aqi-calculator-frontend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: aqi-calculator-backend
+          property: host
