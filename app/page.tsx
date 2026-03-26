@@ -188,29 +188,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.net.http.*;
-import java.util.Map;
 
 @Service
 public class LocationAqiService {
-  private static final String REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
-  private static final String OPEN_METEO_URL = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&current=us_aqi,pm2_5&timezone=auto";
+  private static final String WAQI_URL = "https://api.waqi.info/feed/geo:%s;%s/?token=%s";
+  private final String waqiToken = "f878f...7e2"; // Redacted in UI
 
   public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(String.format(OPEN_METEO_URL, lat, lng))).GET().build();
-  HttpResponse < String > response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        JsonNode root = new ObjectMapper().readTree(response.body());
-        int aqi = root.path("current").path("us_aqi").asInt();
-        double pm25 = root.path("current").path("pm2_5").asDouble();
-  return Map.of("aqi", aqi, "pm25", pm25, "location", fetchLocationName(lat, lng));
-}
-
-    private String fetchLocationName(double lat, double lng) {
-  // Reverse Geocoding with BigDataCloud
-  return "City, Region";
-}
+    String url = String.format(WAQI_URL, lat, lng, waqiToken);
+    HttpClient client = HttpClient.newHttpClient();
+    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+    HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    
+    JsonNode root = new ObjectMapper().readTree(response.body());
+    JsonNode data = root.path("data");
+    
+    double pm25 = data.path("iaqi").path("pm25").path("v").asDouble();
+    int aqi = data.path("aqi").asInt();
+    
+    return Map.of("aqi", aqi, "pm25", pm25, "location", data.path("city").path("name").asText());
+  }
 }`,
-    description: 'Integrates WAQI (aqicn.org) for high-precision real-time station data.'
+    description: 'The primary gateway to the WAQI network, handling station-level IoT data extraction and token authentication.'
   },
   'CityInfoService.java': {
     name: 'CityInfoService.java',
@@ -619,11 +618,11 @@ export default function Home() {
                   </h3>
                   <div className="space-y-6">
                     {[
-                      { step: '01', title: 'Coordinate Handshake', desc: 'Frontend sends Lat/Lng to LocationAqiController via secure REST call.' },
-                      { step: '02', title: 'High-Precision Pulse', desc: 'Spring Boot context executes secure calls to the WAQI (aqicn.org) API for station-level data.' },
-                      { step: '03', title: 'Knowledge Retrieval', desc: 'CityInfoService parses city results and retrieves localized Teleport Urban Area insights.' },
-
-                      { step: '04', title: 'Berkeley Core', desc: 'AqiCalculatorService applies the pollutant-to-cigarette mathematical models.' },
+                      { step: '01', title: 'Geospatial Handshake', desc: 'Secure coordinate verification and REST validation.' },
+                      { step: '02', title: 'Station Authentication', desc: 'Secure handshake with WAQI API using production-grade tokens.' },
+                      { step: '03', title: 'IoT Extraction', desc: 'Parsing sub-micron particle data (iaqi.pm25) from remote sensors.' },
+                      { step: '04', title: 'Contextual Enrichment', desc: 'Aggregating city-level meta-data from Teleport repositories.' },
+                      { step: '05', title: 'Berkeley Core', desc: 'Executing the non-linear cigarette mathematical derivation.' },
                     ].map((step, i) => (
                       <div key={i} className="flex gap-4 group">
                         <span className="text-xs font-black text-white/10 group-hover:text-emerald-500/40 transition-colors pt-1">{step.step}</span>
@@ -649,7 +648,7 @@ export default function Home() {
                       <div className="w-px h-8 bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent" />
                       <div className="px-6 py-4 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 text-xs font-bold text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]">SPRING BOOT SYSTEM</div>
                       <div className="flex gap-6 mt-4">
-                        {['Open-Meteo', 'Wiki', 'BDC'].map(node => (
+                        {['WAQI Network', 'Teleport API', 'IoT Sensors'].map(node => (
                           <div key={node} className="flex flex-col items-center">
                             <div className="w-px h-6 bg-white/10" />
                             <div className="px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[9px] font-mono text-white/30">{node}</div>
