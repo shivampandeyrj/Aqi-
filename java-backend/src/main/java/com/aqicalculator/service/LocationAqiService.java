@@ -22,8 +22,8 @@ public class LocationAqiService {
     private static final String WAQI_API_URL =
             "https://api.waqi.info/feed/geo:%s;%s/?token=%s";
 
-    // Standard public demo token if none provided (very limited, for testing only)
-    private static final String DEFAULT_WAQI_TOKEN = "demo";
+    // User provided WAQI API token
+    private static final String DEFAULT_WAQI_TOKEN = "f878fb06c427d5344cf95cc8de5c7dbca6a3c7e2";
     
     // Set this via environment variable WAQI_TOKEN or -Dwaqi.token=...
     private final String waqiToken = System.getProperty("waqi.token", 
