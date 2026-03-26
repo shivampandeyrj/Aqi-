@@ -19,12 +19,15 @@ public class LocationAqiService {
 
     private static final Logger logger = LoggerFactory.getLogger(LocationAqiService.class);
 
-    private static final String REVERSE_GEOCODE_URL =
-            "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%s&longitude=%s&localityLanguage=en";
+    private static final String WAQI_API_URL =
+            "https://api.waqi.info/feed/geo:%s;%s/?token=%s";
 
-    private static final String OPEN_METEO_URL =
-            "https://air-quality-api.open-meteo.com/v1/air-quality" +
-            "?latitude=%s&longitude=%s&current=us_aqi,pm2_5&timezone=auto";
+    // Standard public demo token if none provided (very limited, for testing only)
+    private static final String DEFAULT_WAQI_TOKEN = "demo";
+    
+    // Set this via environment variable WAQI_TOKEN or -Dwaqi.token=...
+    private final String waqiToken = System.getProperty("waqi.token", 
+            System.getenv().getOrDefault("WAQI_TOKEN", DEFAULT_WAQI_TOKEN));
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -34,46 +37,48 @@ public class LocationAqiService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Fetches real-time AQI and PM2.5 data from Open-Meteo Air Quality API.
-     * Free to use, no API key required.
+     * Fetches real-time air quality data from aqicn.org (WAQI) API.
+     * Uses the iaqi.pm25 field for accurate PM2.5 levels.
      *
-     * @param lat Latitude (-90 to 90)
-     * @param lng Longitude (-180 to 180)
-     * @return Map with "aqi" (int), "pm25" (double), "location" (string)
+     * @param lat Latitude
+     * @param lng Longitude
+     * @return Map with "aqi", "pm25", "location", "source"
      */
     public Map<String, Object> fetchAqi(double lat, double lng) throws Exception {
-        String aqiUrl = String.format(OPEN_METEO_URL, lat, lng);
+        String apiUrl = String.format(WAQI_API_URL, lat, lng, waqiToken);
 
-        HttpRequest aqiRequest = HttpRequest.newBuilder()
-                .uri(URI.create(aqiUrl))
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(apiUrl))
                 .timeout(Duration.ofSeconds(15))
                 .header("Accept", "application/json")
                 .GET()
                 .build();
 
-        HttpResponse<String> aqiResponse = httpClient.send(aqiRequest, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (aqiResponse.statusCode() != 200) {
-            throw new RuntimeException("Open-Meteo API returned status: " + aqiResponse.statusCode());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("WAQI API returned status: " + response.statusCode());
         }
 
-        JsonNode aqiNode = objectMapper.readTree(aqiResponse.body());
-        JsonNode current = aqiNode.path("current");
+        JsonNode root = objectMapper.readTree(response.body());
+        if (!"ok".equals(root.path("status").asText())) {
+            String errorMsg = root.path("data").asText("Unknown API error");
+            throw new RuntimeException("WAQI API Error: " + errorMsg);
+        }
 
-        int usAqi = current.path("us_aqi").asInt(0);
-        double pm25 = current.path("pm2_5").asDouble(0.0);
-
-        // Clamp AQI to valid EPA range
-        usAqi = Math.max(0, Math.min(500, usAqi));
-
-        // Fetch Location Name
-        String locationName = fetchLocationName(lat, lng);
+        JsonNode dataNode = root.path("data");
+        
+        // WAQI reports its own standardized AQI, but we'll use the raw PM2.5 
+        // to stay consistent with our AqiCalculatorService logic and EPA 2024 results.
+        int aqiValue = dataNode.path("aqi").asInt(0);
+        double pm25 = dataNode.path("iaqi").path("pm25").path("v").asDouble(0.0);
+        String cityName = dataNode.path("city").path("name").asText("Detected Location");
 
         Map<String, Object> result = new HashMap<>();
-        result.put("aqi", usAqi);
+        result.put("aqi", aqiValue); // This is WAQI's reported AQI (usually US EPA)
         result.put("pm25", Math.round(pm25 * 10.0) / 10.0);
-        result.put("location", locationName);
-        result.put("source", "Open-Meteo Air Quality API");
+        result.put("location", cityName);
+        result.put("source", "WAQI (aqicn.org) Observation");
         result.put("latitude", lat);
         result.put("longitude", lng);
 

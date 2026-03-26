@@ -126,7 +126,7 @@ public class LocationAqiController {
         }
     }
 }`,
-    description: 'Orchestrates the full data flow: Geolocation -> AQI -> City Info -> Calculations.'
+    description: 'Orchestrates the full data flow: Geolocation -> WAQI API -> City Info -> Precision Calculations.'
   },
   'AqiCalculatorService.java': {
     name: 'AqiCalculatorService.java',
@@ -139,8 +139,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class AqiCalculatorService {
   private static final double[][] AQI_BREAKPOINTS = {
-        { 0, 12.0, 0, 50 }, { 12.1, 35.4, 51, 100 }, { 35.5, 55.4, 101, 150 },
-{ 55.5, 150.4, 151, 200 }, { 150.5, 250.4, 201, 300 }, { 250.5, 500.4, 301, 500 }
+        { 0.0, 9.0, 0, 50 }, { 9.1, 35.4, 51, 100 }, { 35.5, 55.4, 101, 150 },
+        { 55.5, 125.4, 151, 200 }, { 125.5, 225.4, 201, 300 }, { 225.5, 500.4, 301, 500 }
     };
     private static final double PM25_PER_CIGARETTE = 22.0;
 
@@ -210,7 +210,7 @@ public class LocationAqiService {
   return "City, Region";
 }
 }`,
-    description: 'Integrates Open-Meteo and BigDataCloud for real-time data.'
+    description: 'Integrates WAQI (aqicn.org) for high-precision real-time station data.'
   },
   'CityInfoService.java': {
     name: 'CityInfoService.java',
@@ -620,7 +620,7 @@ export default function Home() {
                   <div className="space-y-6">
                     {[
                       { step: '01', title: 'Coordinate Handshake', desc: 'Frontend sends Lat/Lng to LocationAqiController via secure REST call.' },
-                      { step: '02', title: 'Third-Party Pulse', desc: 'Spring Boot context executes parallel calls to Open-Meteo and BigDataCloud APIs.' },
+                      { step: '02', title: 'High-Precision Pulse', desc: 'Spring Boot context executes secure calls to the WAQI (aqicn.org) API for station-level data.' },
                       { step: '03', title: 'Knowledge Retrieval', desc: 'CityInfoService parses city results and retrieves localized Teleport Urban Area insights.' },
 
                       { step: '04', title: 'Berkeley Core', desc: 'AqiCalculatorService applies the pollutant-to-cigarette mathematical models.' },
