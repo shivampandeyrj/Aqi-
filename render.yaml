@@ -1,12 +1,9 @@
-services:
   # 1. Java Backend Service
   - type: web
     name: aqi-calculator-backend
-    env: java
+    runtime: docker
     plan: free
     rootDir: java-backend
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/aqi-cigarette-calculator-1.0.0.jar
     healthCheckPath: /api/health
     envVars:
       - key: PORT
