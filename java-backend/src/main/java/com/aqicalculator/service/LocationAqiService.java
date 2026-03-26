@@ -86,8 +86,16 @@ public class LocationAqiService {
         result.put("aqi", aqiValue);
         result.put("pm25", Math.round(pm25 * 10.0) / 10.0);
         result.put("location", locationName);
+        
+        // Add monitoring station details for transparency
         result.put("station", dataNode.path("city").path("name").asText("Unknown Station"));
-        result.put("source", "WAQI (aqicn.org) Observation");
+        JsonNode stationGeo = dataNode.path("city").path("geo");
+        if (stationGeo.isArray() && stationGeo.size() >= 2) {
+            result.put("stationLatitude", stationGeo.get(0).asDouble());
+            result.put("stationLongitude", stationGeo.get(1).asDouble());
+        }
+        
+        result.put("source", "WAQI (aqicn.org) Network");
         result.put("latitude", lat);
         result.put("longitude", lng);
 
