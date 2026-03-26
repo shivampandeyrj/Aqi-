@@ -66,6 +66,17 @@ public class LocationAqiController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to fetch AQI data: " + e.getMessage()));
         }
+    }
+
+    /**
+     * GET /api/aqi/suggestions?query={q}
+     * Returns city name suggestions for autocomplete.
+     */
+    @GetMapping("/suggestions")
+    public ResponseEntity<?> getSuggestions(@RequestParam("query") String query) {
+        return ResponseEntity.ok(cityInfoService.getSuggestions(query));
+    }
+
     /**
      * GET /api/aqi/search?query={city}
      * Searches for monitoring stations by keyword and returns the AQI for the best match.

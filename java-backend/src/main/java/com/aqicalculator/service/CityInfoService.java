@@ -14,6 +14,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class CityInfoService {
@@ -107,5 +109,41 @@ public class CityInfoService {
             logger.error("Critical error in CityInfoService for {}: {}", cityName, e.getMessage());
             return new PlaceInfo(cityName.split(",")[0].trim(), "Environmental data point with active secondary pollutant monitoring.", null, null);
         }
+        }
+    }
+
+    /**
+     * Fetches city name suggestions from Teleport API.
+     * Use this for search autocomplete.
+     */
+    public List<String> getSuggestions(String query) {
+        if (query == null || query.trim().length() < 2) {
+            return List.of();
+        }
+
+        try {
+            String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(String.format(TELEPORT_SEARCH_URL, encodedQuery)))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode results = root.path("_embedded").path("city:search-results");
+                
+                List<String> suggestions = new ArrayList<>();
+                for (JsonNode result : results) {
+                    suggestions.add(result.path("matching_full_name").asText());
+                    if (suggestions.size() >= 5) break; // Limit to 5 suggestions
+                }
+                return suggestions;
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching suggestions for {}: {}", query, e.getMessage());
+        }
+        return List.of();
     }
 }

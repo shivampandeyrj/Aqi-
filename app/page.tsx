@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { Wind, Loader2, AlertTriangle, TrendingUp, Heart, Clock, Calendar, Flame, Shield, MapPin, CheckCircle, Code2, Box, Zap, Share2, FileJson, FolderTree, Folder, FileCode, Cpu, Activity, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -393,6 +393,8 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState('LocationAqiController.java');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const calculateCigarettes = useCallback(async (aqiOverride?: number, placeData?: any, locationName?: string) => {
     const aqiValue = aqiOverride ?? parseInt(aqi);
@@ -496,6 +498,29 @@ export default function Home() {
       setIsSearching(false);
     }
   }, [searchQuery, calculateCigarettes]);
+
+  // Handle Suggestions
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSuggestions([]);
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/api/aqi/suggestions?query=${searchQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data);
+          setShowSuggestions(true);
+        }
+      } catch (err) {
+        console.error("Suggestion fetch failed", err);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const detectLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -747,10 +772,30 @@ export default function Home() {
                     <Input
                       placeholder="Search city (e.g. New York, Delhi...)"
                       value={searchQuery}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                       className="h-14 bg-white/5 border-white/10 rounded-2xl pl-12 text-white placeholder:text-white/30 focus:border-emerald-500/50 transition-all"
                     />
                     <Wind className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-emerald-400 transition-colors" />
+
+                    {/* Suggestions Dropdown */}
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-[#0d0d15] border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                        {suggestions.map((s: string, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery(s);
+                              setSuggestions([]);
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full text-left px-5 py-3 text-xs text-white/60 hover:text-emerald-400 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <Button
                     type="submit"
