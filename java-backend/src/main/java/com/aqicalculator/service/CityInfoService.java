@@ -109,7 +109,6 @@ public class CityInfoService {
             logger.error("Critical error in CityInfoService for {}: {}", cityName, e.getMessage());
             return new PlaceInfo(cityName.split(",")[0].trim(), "Environmental data point with active secondary pollutant monitoring.", null, null);
         }
-        }
     }
 
     /**
