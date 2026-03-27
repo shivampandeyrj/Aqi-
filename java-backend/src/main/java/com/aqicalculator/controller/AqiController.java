@@ -83,39 +83,6 @@ public class AqiController {
         }
     }
 
-    /**
-     * GET /api/health
-     * Health check endpoint
-     */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> healthCheck() {
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "UP");
-        response.put("service", "AQI Cigarette Calculator API");
-        response.put("version", "1.0.0");
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * GET /api/info
-     * API information endpoint
-     */
-    @GetMapping("/info")
-    public ResponseEntity<Map<String, Object>> getInfo() {
-        Map<String, Object> info = new HashMap<>();
-        info.put("name", "AQI to Cigarette Calculator API");
-        info.put("version", "1.0.0");
-        info.put("description", "Calculates cigarette equivalent based on Air Quality Index");
-        info.put("methodology", "Berkeley Earth Research - 22 µg/m³ PM2.5 = 1 cigarette");
-        info.put("endpoints", new String[]{
-            "POST /api/calculate - Calculate from AQI",
-            "GET /api/calculate/{aqi} - Calculate from path parameter",
-            "GET /api/health - Health check",
-            "GET /api/info - API information"
-        });
-        return ResponseEntity.ok(info);
-    }
-
     private Map<String, String> createErrorResponse(String message) {
         Map<String, String> error = new HashMap<>();
         error.put("error", message);

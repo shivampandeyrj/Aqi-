@@ -5,7 +5,7 @@ services:
     runtime: docker
     plan: free
     rootDir: java-backend
-    healthCheckPath: /api/health
+    healthCheckPath: /
     envVars:
       - key: PORT
         value: 8080
