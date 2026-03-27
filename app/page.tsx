@@ -463,10 +463,15 @@ export default function Home() {
 
     try {
       const res = await fetch(`${API_URL}/api/aqi/search?query=${encodeURIComponent(searchQuery)}`);
+
       if (!res.ok) {
-        if (res.status === 404) throw new Error('No monitoring stations found for this location.');
-        throw new Error('Search failed');
+        const errorData = await res.json().catch(() => ({}));
+        if (res.status === 404) {
+          throw new Error(errorData.message || 'No monitoring stations found for this location.');
+        }
+        throw new Error(errorData.error || 'Search failed. Please try again later.');
       }
+
       const data = await res.json();
 
       const fetchedAqi = data.aqi?.toString() ?? '0';

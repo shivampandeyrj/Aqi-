@@ -51,8 +51,16 @@ public class LocationAqiController {
             result.put("placeInfo", cityInfoService.fetchPlaceInfo(cityName));
             
             // Enrich with full Calculation Response data (Using 2024 EPA standards from raw PM2.5 for health analysis)
-            double pm25 = (double) result.get("pm25");
-            CalculationResponse details = aqiCalculatorService.calculateFromPm25(pm25);
+            double pm25 = (double) result.getOrDefault("pm25", 0.0);
+            int rawAqi = (int) result.getOrDefault("aqi", 0);
+            
+            CalculationResponse details;
+            // Robust PM2.5 Fallback: If station doesn't report raw PM2.5, estimate from general AQI
+            if (pm25 <= 0.0 && rawAqi > 0) {
+                details = aqiCalculatorService.calculate(rawAqi);
+            } else {
+                details = aqiCalculatorService.calculateFromPm25(pm25);
+            }
             
             details.setLocation(cityName);
             result.put("aqi", details.getAqi());
@@ -89,11 +97,22 @@ public class LocationAqiController {
 
             List<Map<String, Object>> stations = locationAqiService.searchStations(query);
             if (stations.isEmpty()) {
-                return ResponseEntity.ok(Map.of("results", List.of(), "message", "No stations found for: " + query));
+                return ResponseEntity.status(404).body(Map.of("message", "No monitoring stations found for: " + query));
             }
 
-            // Pick the first/best station and get its full AQI data
-            Map<String, Object> bestStation = stations.get(0);
+            // Pick the first station that HAS coordinates
+            Map<String, Object> bestStation = null;
+            for (Map<String, Object> s : stations) {
+                if (s.containsKey("lat") && s.containsKey("lng")) {
+                    bestStation = s;
+                    break;
+                }
+            }
+
+            if (bestStation == null) {
+                return ResponseEntity.status(404).body(Map.of("message", "Stations found but they lack GPS coordinates."));
+            }
+
             double lat = (double) bestStation.get("lat");
             double lng = (double) bestStation.get("lng");
 
