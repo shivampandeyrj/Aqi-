@@ -154,7 +154,7 @@ import org.springframework.stereotype.Service;
 public class AqiCalculatorService {
   private static final double[][] AQI_BREAKPOINTS = {
         { 0.0, 9.0, 0, 50 }, { 9.1, 35.4, 51, 100 }, { 35.5, 55.4, 101, 150 },
-        { 55.5, 125.4, 151, 200 }, { 125.5, 225.4, 201, 300 }, { 225.5, 500.4, 301, 500 }
+        { 55.5, 125.4, 151, 200 }, { 125.5, 225.4, 201, 300 }, { 225.5, 325.4, 301, 500 }
     };
     private static final double PM25_PER_CIGARETTE = 22.0;
 
