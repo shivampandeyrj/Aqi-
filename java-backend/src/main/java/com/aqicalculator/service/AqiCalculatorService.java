@@ -36,7 +36,7 @@ public class AqiCalculatorService {
             }
         }
         // Fallback or beyond hazardous range
-        if (pm25 > 500.4) return 500;
+        if (pm25 > 325.4) return 500;
         return (int) Math.round(pm25 * 2.0);
     }
 

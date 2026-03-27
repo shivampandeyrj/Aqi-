@@ -54,9 +54,8 @@ public class LocationAqiController {
             double pm25 = (double) result.get("pm25");
             CalculationResponse details = aqiCalculatorService.calculateFromPm25(pm25);
             
-            // Keep the 'aqi' as reported by WAQI (to match their website)
-            // But provide our strict 2024 EPA calculation in the details for comparison
             details.setLocation(cityName);
+            result.put("aqi", details.getAqi());
             result.put("details", details);
             
             return ResponseEntity.ok(result);
